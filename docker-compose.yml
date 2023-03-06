@@ -1,0 +1,26 @@
+version: "3.8"
+
+services:
+  db:
+    container_name: db_container_${MODE}
+    image: postgres
+    restart: always
+    volumes:
+      - ../data/db/${DB_NAME}:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${PG_USER}
+      - POSTGRES_PASSWORD=${PG_PASSWORD}
+
+  tgbot:
+    container_name: tg_container_${MODE}
+    build:
+      context: .
+    restart: always
+    network_mode: host
+    volumes:
+      - ../data/logs:/Synopsis/data/logs
+    env_file:
+      - ../data/.env.${MODE}
+    depends_on:
+      - db
