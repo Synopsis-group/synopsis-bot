@@ -1,0 +1,30 @@
+# The script for auto-deploy releases
+
+name: Prod-Deploy
+
+# The workflow will run when release is pushed into prod branch
+on:
+  push:
+    branches: [ prod ]
+
+# A workflow
+jobs:
+  ReleaseDeploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      #Connecting to server
+      - name: Connecting to server
+        uses: appleboy/ssh-action@master
+        with:
+          host    : ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key     : ${{ secrets.SSH_KEY }}
+          port    : ${{ secrets.SSH_PORT }}
+          script: |
+            cd /root/Synopsis
+            rm -rf prod
+            git clone -b prod --single-branch git@github.com:Synopsis-group/synopsis-bot.git prod
+            cd prod
+            chmod u+x install.zsh
+            ./install.zsh
