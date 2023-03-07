@@ -29,3 +29,8 @@ async def button_reaction(call: types.callback_query):
 
 executor.start_polling(dp)
 
+if __name__ == '__main__':
+    """Точка входа в программу.
+    """
+    print("hello")
+
