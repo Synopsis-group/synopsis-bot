@@ -8,6 +8,7 @@ from datetime import date
 from synopsis.tools import loggerSetup
 from synopsis.common.config import BotAuth
 from synopsis.db.database import DataBase
+from synopsis.bot import tgWorker
 
 auth_conf = BotAuth()
 
@@ -36,3 +37,6 @@ if __name__ == '__main__':
     logger.info(f'Filesystem encoding: {sys.getfilesystemencoding()}, Preferred encoding: {locale.getpreferredencoding()}')
     logger.info(f'Current version {bot_version}')
     logger.info('Logging into Telegramm...')
+
+    tgWorker.start()
+
