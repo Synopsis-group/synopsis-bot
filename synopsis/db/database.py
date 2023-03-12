@@ -8,10 +8,9 @@ from os.path import realpath, dirname
 import psycopg2
 from psycopg2 import Error, sql
 
-from synopsis.common import config
+from synopsis.config.settings import settings
 
 logger = logging.getLogger('logger')
-db_conf = config.Database()
 
 class DataBase():
     """Интерфейс для работы с базой данных PostgreSql.
@@ -28,13 +27,13 @@ class DataBase():
         """Подключение к базе данных.
         """
         try:
-            logger.debug(f'Connecting to {db_conf.DB_NAME}')
+            logger.debug(f'Connecting to {settings.db.name}')
             self.conn = psycopg2.connect(
-                user     = db_conf.PG_USER,
-                password = db_conf.PG_PASSWORD,
-                host     = db_conf.PG_HOST,
-                port     = db_conf.PG_PORT,
-                database = db_conf.DB_NAME)
+                user     = settings.db.user,
+                password = settings.db.password,
+                host     = settings.db.host,
+                port     = settings.db.port,
+                database = settings.db.name)
             self.conn.autocommit=True
         except (Exception, Error) as er:
             logger.error(f'Connection to database failed: {er}')
@@ -139,3 +138,11 @@ class DataBase():
         else:
             logger.debug(f"Events were successfully got!")
             return events
+
+    # db.insert_data_event([EventStatus.NEW.value, 1234, "Event new", EventType.SPORT.value, EventTime.BEFORE_MIDDAY.value, EventDate.TODAY.value, EventDuration.HALF_HOUR.value, "дюсш 2"])
+
+    # new_data = { 'title': 'Клатч', 'event_type': EventType.SPORT.value }
+    # db.update_data_event('qjuy8l', 7878, new_data)
+
+    # filters = {'author_id': 23418793, 'event_status': EventStatus.CHANGED.value}
+    # logger.debug(db.get_events(filters))

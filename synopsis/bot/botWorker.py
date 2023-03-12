@@ -1,20 +1,10 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+from aiogram import Dispatcher, Bot, executor
+from aiogram import types
+import logging
 
-from aiogram import types, executor, Dispatcher, Bot
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-import asyncio
-from aiogram.dispatcher import Dispatcher
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.utils import executor
-from synopsis.common.config import BotAuth
-
-# Импорт конфига
-auth_conf = BotAuth()
-
-# bot init
-bot = Bot(token=auth_conf.BOT_TOKEN)
-dp = Dispatcher(bot)
+from synopsis.db.database import DataBase
+from synopsis.config.settings import settings
+from synopsis.config.users import users
 
 # Константы для обработки кнопок
 BUTTON_VREMYA = 'Время начала'
@@ -51,9 +41,14 @@ BUTTON_TYPE_SPORT = 'Спорт'
 BUTTON_TYPE_EDUCATION = 'Образование'
 BUTTON_TYPE_CULTURE = 'Культура'
 
+logger = logging.getLogger('logger')
+
 # Словарь для хранения выбранных параметров
 params = {}
 
+bot = Bot(token=settings.bots.token)
+dp = Dispatcher(bot)
+db = None
 
 # Хендлер для команды /start (запуск бота)
 @dp.message_handler(commands=['start'])
@@ -66,7 +61,6 @@ async def send_welcome(message: types.Message):
     markup.row(BUTTON_RESET)
 
     await message.reply("Привет! Я помогу тебе найти интересующее тебя мероприятие. Выбери параметры поиска:", reply_markup=markup)
-
 
 # Хендлер для кнопок
 @dp.message_handler(lambda message: message.text in [BUTTON_VREMYA, BUTTON_DATA, BUTTON_DURATION, BUTTON_ORGANIZATION, BUTTON_TYPE])
@@ -175,7 +169,6 @@ async def handle_button_organization(message: types.Message):
 
 # Хендлер для кнопок выбора типа мероприятия
 @dp.message_handler(lambda message: message.text in [BUTTON_TYPE_CULTURE, BUTTON_TYPE_EDUCATION, BUTTON_TYPE_SPORT, BUTTON_TYPE_SPORT])
-
 async def handle_button_type(message: types.Message):
     if message.text == BUTTON_TYPE_CULTURE:
         params['type'] = 'culture'
@@ -212,5 +205,6 @@ def get_search_markup():
     markup.row(BUTTON_RESET)
     return markup
 
-if __name__ == '__main__':
+def start(database: DataBase):
+    db = database
     executor.start_polling(dp, skip_updates=True)
