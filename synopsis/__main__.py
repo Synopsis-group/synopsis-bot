@@ -37,7 +37,6 @@ if __name__ == '__main__':
     logger.info(f'Current version {bot_version}')
     logger.info('Logging into Telegramm...')
     logger.info(auth_conf.BOT_TOKEN)
-    # tgWorker.start()
 
 
 
