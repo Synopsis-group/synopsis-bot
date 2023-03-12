@@ -4,11 +4,10 @@
 import sys
 import locale
 from datetime import date
-
 from synopsis.tools import loggerSetup
 from synopsis.common.config import BotAuth
-from synopsis.db.database import DataBase
-from synopsis.bot import tgWorker
+# from synopsis.db.database import DataBase
+# from synopsis.bot import tgWorker
 
 auth_conf = BotAuth()
 
@@ -32,11 +31,13 @@ if __name__ == '__main__':
     #     load_dotenv()
 
     # Инициализация класса для подключение к базе данных
-    db = DataBase()
+    # db = DataBase()
 
     logger.info(f'Filesystem encoding: {sys.getfilesystemencoding()}, Preferred encoding: {locale.getpreferredencoding()}')
     logger.info(f'Current version {bot_version}')
     logger.info('Logging into Telegramm...')
+    logger.info(auth_conf.BOT_TOKEN)
+    # tgWorker.start()
 
-    tgWorker.start()
+
 
