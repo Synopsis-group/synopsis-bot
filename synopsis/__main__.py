@@ -8,7 +8,8 @@ from datetime import date
 from synopsis.tools import loggerSetup
 from synopsis.common.config import BotAuth
 from synopsis.db.database import DataBase
-from synopsis.bot import tgWorker
+from synopsis.common.config import EventDate, EventDuration, EventStatus, EventTime, EventType
+# from synopsis.bot import tgWorker
 
 auth_conf = BotAuth()
 
@@ -38,5 +39,13 @@ if __name__ == '__main__':
     logger.info(f'Current version {bot_version}')
     logger.info('Logging into Telegramm...')
 
-    tgWorker.start()
+    # db.insert_data_event([EventStatus.NEW.value, 1234, "Event new", EventType.SPORT.value, EventTime.BEFORE_MIDDAY.value, EventDate.TODAY.value, EventDuration.HALF_HOUR.value, "дюсш 2"])
+
+    # new_data = { 'title': 'Клатч', 'event_type': EventType.SPORT.value }
+    # db.update_data_event('qjuy8l', 7878, new_data)
+
+    # filters = {'author_id': 23418793, 'event_status': EventStatus.CHANGED.value}
+    # logger.debug(db.get_events(filters))
+
+    # tgWorker.start()
 

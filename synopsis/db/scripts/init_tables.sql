@@ -1,9 +1,22 @@
-CREATE TABLE if not exists audio_requests (
+CREATE TABLE if not exists admins (
 	user_id INTEGER PRIMARY KEY,
-	audio_id TEXT UNIQUE,
-	audio_url TEXT NOT NULL,
-	audio_name TEXT,
-	audio_author TEXT,
-	audio_segment TEXT,
-	date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	parent_id INTEGER NOT NULL,
+	hired_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    dislikes INTEGER
+);
+
+CREATE TABLE if not exists events (
+	event_id TEXT PRIMARY KEY,
+    event_status INTEGER,
+	author_id INTEGER NOT NULL,
+	creation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    editor_id INTEGER,
+    changed_date TIMESTAMP,
+
+    title TEXT NOT NULL,
+    event_type INTEGER NOT NULL,
+    start_time INTEGER NOT NULL,
+    event_date INTEGER NOT NULL,
+    duration INTEGER NOT NULL,
+    organization TEXT NOT NULL
 );
