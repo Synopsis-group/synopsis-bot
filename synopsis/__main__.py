@@ -27,5 +27,5 @@ if __name__ == '__main__':
     logger.info(f'Current version {settings.bots.version}')
     logger.info('Logging into Telegramm...')
 
-    botWorker.start(db)
+    botWorker.start()
 
