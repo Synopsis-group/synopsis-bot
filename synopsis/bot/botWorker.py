@@ -92,7 +92,11 @@ search_cb = CallbackData('search', 'key', 'value')
 async def process_search_filters(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
     key = callback_data.get('key')
     value = int(callback_data.get('value'))
-    msg = call.message.reply_markup.inline_keyboard[value-1][0].text
+    msg = ''
+    if key == 'start_time': msg = events.time(value).description
+    if key == 'event_date': msg = events.date(value).description
+    if key == 'duration': msg = events.duration(value).description
+    if key == 'event_type': msg = events.type(value).description
 
     async with state.proxy() as data:
         data[key] = value
@@ -128,69 +132,54 @@ async def search_events_handler(message: types.Message):
 
 @dp.message_handler(Text(equals=["Время начала"]), state=Searching.READY)
 async def choose_time_start(message: types.Message):
-    time_start = InlineKeyboardMarkup(row_width=1)
-    before_12 = InlineKeyboardButton('До 12', callback_data=search_cb.new(key='start_time', value=events.time.before_12.value))
-    between_12_16 = InlineKeyboardButton('С 12 до 16', callback_data=search_cb.new(key='start_time', value=events.time.between_12_16.value))
-    between_16_19 = InlineKeyboardButton('С 16 до 19', callback_data=search_cb.new(key='start_time', value=events.time.between_16_19.value))
-    after_19 = InlineKeyboardButton('Позднее 19', callback_data=search_cb.new(key='start_time', value=events.time.after_19.value))
-    time_start.add(before_12, between_12_16, between_16_19, after_19)
-    await message.reply("Выберите время начала:", reply_markup=time_start)
+    options = InlineKeyboardMarkup(row_width=1)
+    for obj in events.time.__members__.values():
+        options.add(InlineKeyboardButton(obj.description, callback_data=search_cb.new(key='start_time', value=obj.value)))
+    await message.reply("Выберите время начала:", reply_markup=options)
 
 @dp.message_handler(Text(equals=["Дата начала"]), state=Searching.READY)
 async def choose_date_start(message: types.Message):
-    date_start = InlineKeyboardMarkup(row_width=1)
-    today = InlineKeyboardButton('Сегодня', callback_data=search_cb.new(key='event_date', value=events.date.today.value))
-    tommorow = InlineKeyboardButton('Завтра', callback_data=search_cb.new(key='event_date', value=events.date.tomorrow.value))
-    next_week = InlineKeyboardButton('Ближайшая неделя', callback_data=search_cb.new(key='event_date', value=events.date.next_week.value))
-    date_start.add(today, tommorow, next_week)
-    await message.reply("Выберите дату начала:", reply_markup=date_start)
+    options = InlineKeyboardMarkup(row_width=1)
+    for obj in events.date.__members__.values():
+        options.add(InlineKeyboardButton(obj.description, callback_data=search_cb.new(key='event_date', value=obj.value)))
+    await message.reply("Выберите дату начала:", reply_markup=options)
 
 @dp.message_handler(Text(equals=["Продолжительность"]), state=Searching.READY)
 async def choose_duration(message: types.Message):
-    duratiion = InlineKeyboardMarkup(row_width=1)
-    min_30 = InlineKeyboardButton('~30', callback_data=search_cb.new(key='duration', value=events.duration.min_30.value))
-    hour_1 = InlineKeyboardButton('~1:00', callback_data=search_cb.new(key='duration', value=events.duration.hour_1.value))
-    hour_1_30 = InlineKeyboardButton('~1:30', callback_data=search_cb.new(key='duration', value=events.duration.hour_1_30.value))
-    hour_2 = InlineKeyboardButton('~2:00', callback_data=search_cb.new(key='duration', value=events.duration.hour_2.value))
-    hour_3 = InlineKeyboardButton('~3:00', callback_data=search_cb.new(key='duration', value=events.duration.hour_3.value))
-    more_3 = InlineKeyboardButton('Более 3 часов', callback_data=search_cb.new(key='duration', value=events.duration.more_3.value))
-    duratiion.add(min_30, hour_1, hour_1_30, hour_2, hour_3, more_3)
-    await message.reply("Выберите продоолжительность:", reply_markup=duratiion)
+    options = InlineKeyboardMarkup(row_width=1)
+    for obj in events.duration.__members__.values():
+        options.add(InlineKeyboardButton(obj.description, callback_data=search_cb.new(key='duration', value=obj.value)))
+    await message.reply("Выберите продоолжительность:", reply_markup=options)
 
 @dp.message_handler(Text(equals=["Тип мероприятия"]), state=Searching.READY)
 async def choose_type(message: types.Message):
-    event_type = InlineKeyboardMarkup(row_width=1)
-    sport = InlineKeyboardButton('Спорт', callback_data=search_cb.new(key='event_type', value=events.type.sport.value))
-    education = InlineKeyboardButton('Образование', callback_data=search_cb.new(key='event_type', value=events.type.education.value))
-    culture = InlineKeyboardButton('Культура', callback_data=search_cb.new(key='event_type', value=events.type.culture.value))
-    event_type.add(sport, education, culture)
-    await message.reply("Выберите тип мероприятия:", reply_markup=event_type)
+    options = InlineKeyboardMarkup(row_width=1)
+    for obj in events.type.__members__.values():
+        options.add(InlineKeyboardButton(obj.description, callback_data=search_cb.new(key='event_type', value=obj.value)))
+    await message.reply("Выберите тип мероприятия:", reply_markup=options)
 
 @dp.message_handler(Text(equals=["Показать"]), state=Searching.READY)
 async def show_events(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    print(data)
-
     # строим запрос к базе данных и получаем список мероприятий, соответствующих выбранным характеристикам
-    events = db.get_events(await state.get_data())
+    events_list = db.get_events(await state.get_data())
 
     # отображаем найденные мероприятия
-    if not events:
+    if not events_list:
         await message.answer("Ничего не найдено. Фильтры поиска сброшены")
         await state.finish()
         await Searching.READY.set()
     else:
-        events_text = "Найденные мероприятия:\n\n"
-        for event in events:
-            events_text += (
-                f"[{event['id']}] {event['name']}\n"
-                f"Тип: {event['type']}\n"
-                f"Дата: {event['date']}\n"
-                f"Время: {event['time']}\n"
-                f"Организация: {event['organization']}\n"
-                f"Добавил: {event['admin']}\n\n"
-            )
-
+        events_text = "Найденные мероприятия:\n"
+        for event in events_list:
+            events_text += f"""
+[{event[0]}] {event[6].strip()}
+Тип: {events.type(event[7]).description}
+Дата: {events.date(event[9]).description}
+Время: {events.time(event[8]).description}
+Организация: {event[11]}
+Продолжительность: {events.duration(event[10]).description}
+Добавил: {event[2]}\n
+            """
         await message.answer(events_text)
 
 @dp.message_handler(Text(equals=["Сбросить"]), state=Searching.READY)
