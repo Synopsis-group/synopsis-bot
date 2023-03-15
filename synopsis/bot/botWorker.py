@@ -34,7 +34,7 @@ class SearchEvents(StatesGroup):
     duration = State()
     organization = State()
     event_type = State()
-
+    create_type = State()
 
 def get_main_keyboard(user_type):
     if user_type == "admin":
@@ -442,3 +442,84 @@ async def choose_city(message: types.Message):
 def start(db: DataBase):
     logger.debug("Bot has been started")
     executor.start_polling(dp, skip_updates=True)
+
+
+
+
+
+
+
+
+
+
+@dp.message_handler(Text(equals=["Управление событиями"]))
+async def search_events_handler(message: types.Message):
+    markup = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="Создать"),
+                KeyboardButton(text="Изменить"),
+            ],
+            [
+                KeyboardButton(text="Назад"),
+            ],
+        ],
+        resize_keyboard=True,
+    )
+    await message.answer("Выберите настройки для создания:", reply_markup=markup)
+    await SearchEvents.create_type.set()
+
+
+@dp.message_handler(Text(equals=["Создать"]), state=SearchEvents.create_type)
+async def choose_time_start(message: types.Message):
+    markup = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="Название мероприятия"),
+                KeyboardButton(text="Тип мероприятия"),
+            ],
+            [
+                KeyboardButton(text="Время начала"),
+                KeyboardButton(text="Дата проведения"),
+            ],
+            [
+                KeyboardButton(text="Продолжительность"),
+                KeyboardButton(text="Организация"),
+            ],
+            [
+                KeyboardButton(text="Назад"),
+            ]
+        ],
+        resize_keyboard=True,
+    )
+    await message.answer("Выберите соответствующие характеристики:", reply_markup=markup)
+    await SearchEvents.event_type.set()
+
+@dp.message_handler(Text(equals=["Тип мероприятия"]), state=SearchEvents.event_type)
+async def choose_event_type(message: types.Message):
+    markup = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="Спорт"),
+                KeyboardButton(text="Образование"),
+            ],
+            [
+                KeyboardButton(text="Культура"),
+            ],
+            [
+                KeyboardButton(text="Назад"),
+            ],
+        ],
+        resize_keyboard=True,
+    )
+
+    await message.answer("Выберите тип мероприятия:", reply_markup=markup)
+    await SearchEvents.next()
+
+
+@dp.message_handler(Text(equals=["Спорт", "Образование", "Культура", "Назад"]), state=SearchEvents.event_type)
+async def get_event_type(message: types.Message, state: FSMContext):
+    if message.text == "Назад":
+        await go_back(message, state)
+        return
+    await state.update_data(event_type=message.text)
