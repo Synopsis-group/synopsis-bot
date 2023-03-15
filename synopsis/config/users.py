@@ -13,7 +13,7 @@ def get_users():
     env.read_env()
 
     return Users(
-        owners=env.list('OWNERS_ID', delimiter=',')
+        owners=env.list('OWNERS_ID', delimiter=',', subcast=int)
     )
 
 users = get_users()
