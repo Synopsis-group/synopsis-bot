@@ -7,8 +7,10 @@ import random, string
 from os.path import realpath, dirname
 import psycopg2
 from psycopg2 import Error, sql
+from environs import Env
 
 from synopsis.config.settings import settings
+from synopsis.config.users import users
 
 logger = logging.getLogger('logger')
 
@@ -61,6 +63,12 @@ class DataBase():
             sys.exit()
         else:
             logger.debug(f'Tables are ready to use')
+            env = Env()
+            env.read_env()
+            for user_id in env.list('OWNERS_ID', delimiter=',', subcast=int):
+                if self.get_user(user_id): continue
+                logger.debug(f"Insert new user {user_id} as owner")
+                self.insert_user([user_id, users.owner.value])
 
     def _generateEventId(self):
         return ''.join(random.SystemRandom().choice(string.ascii_letters + string.digits) for _ in range(6))
@@ -83,10 +91,10 @@ class DataBase():
                 curs.execute(insert_query)
 
         except (Exception, Error) as er:
-            logger.error(f"Can't insert query into database: {er}")
+            logger.error(f"Can't insert event query into database: {er}")
             return False
         else:
-            logger.debug(f"Data was successfully inserted!")
+            logger.debug(f"Data event was successfully inserted!")
             return True
 
     def update_data_event(self, event_id: str, editor_id: int, data: dict) -> bool:
@@ -108,10 +116,10 @@ class DataBase():
                 curs.execute(insert_query, (editor_id, event_id))
 
         except (Exception, Error) as er:
-            logger.error(f"Can't update query in database: {er}")
+            logger.error(f"Can't update event query in database: {er}")
             return False
         else:
-            logger.debug(f"Data was successfully updated!")
+            logger.debug(f"Data event was successfully updated!")
             return True
 
     def get_events(self, filters: dict) -> list:
@@ -138,6 +146,52 @@ class DataBase():
         else:
             logger.debug(f"Events were successfully got!")
             return events
+
+    def insert_user(self, data: list) -> bool:
+        try:
+            insert_query = sql.SQL('INSERT INTO users (user_id, user_role) VALUES ({})').format(
+                sql.SQL(', ').join(map(sql.Literal, data)))
+
+            with self.conn.cursor() as curs:
+                curs.execute(insert_query)
+
+        except (Exception, Error) as er:
+            logger.error(f"Can't insert user query into database: {er}")
+            return False
+        else:
+            logger.debug(f"Data user was successfully inserted!")
+            return True
+
+    def update_user_city(self, user_id: int, city: str) -> bool:
+        try:
+            insert_query = sql.SQL('UPDATE users SET city=%s WHERE user_id=%s')
+
+            with self.conn.cursor() as curs:
+                curs.execute(insert_query, (city, user_id))
+
+        except (Exception, Error) as er:
+            logger.error(f"Can't update user query in database: {er}")
+            return False
+        else:
+            logger.debug(f"Data user was successfully updated!")
+            return True
+
+    def get_user(self, user_id: int) -> list:
+        try:
+            insert_query = sql.SQL('SELECT * FROM users WHERE user_id=%s')
+
+            user = []
+            with self.conn.cursor() as curs:
+                curs.execute(insert_query, (user_id,))
+                user = curs.fetchone()
+
+        except (Exception, Error) as er:
+            logger.error(f"Can't get user: {er}")
+            return None
+        else:
+            logger.debug(f"User was successfully got!")
+            return user
+
 
     # db.insert_data_event([EventStatus.NEW.value, 1234, "Event new", EventType.SPORT.value, EventTime.BEFORE_MIDDAY.value, EventDate.TODAY.value, EventDuration.HALF_HOUR.value, "дюсш 2"])
 

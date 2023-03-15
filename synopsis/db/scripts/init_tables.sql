@@ -1,8 +1,8 @@
-CREATE TABLE if not exists admins (
+CREATE TABLE if not exists users (
 	user_id INTEGER PRIMARY KEY,
-	parent_id INTEGER NOT NULL,
-	hired_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    dislikes INTEGER
+	parent_id INTEGER,
+    user_role INTEGER NOT NULL,
+    city TEXT
 );
 
 CREATE TABLE if not exists events (

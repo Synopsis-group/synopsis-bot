@@ -13,7 +13,7 @@ import logging
 
 from synopsis.config.settings import settings
 from synopsis.db.database import DataBase
-from synopsis.config.users import users
+from synopsis.config.users import users as userType
 
 logger = logging.getLogger('logger')
 
@@ -21,12 +21,12 @@ logger = logging.getLogger('logger')
 bot = Bot(token=settings.bots.token)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
+db: DataBase = DataBase()
 
 cities = [
     "Новоуральск",
     "Екатеринбург"
 ]
-
 
 class SearchEvents(StatesGroup):
     time_start = State()
@@ -35,18 +35,19 @@ class SearchEvents(StatesGroup):
     organization = State()
     event_type = State()
 
-
 def get_main_keyboard(user_type):
-    if user_type == "admin":
+    if user_type == userType.owner or user_type == userType.admin:
         return ReplyKeyboardMarkup(
             keyboard=[
                 [
                     KeyboardButton(text="Поиск мероприятий"),
+                ],
+                [
                     KeyboardButton(text="Управление событиями"),
                 ],
                 [
-                    KeyboardButton(text="Другое"),
                     KeyboardButton(text="Избранное"),
+                    KeyboardButton(text="Другое"),
                 ],
             ],
             resize_keyboard=True,
@@ -56,9 +57,10 @@ def get_main_keyboard(user_type):
             keyboard=[
                 [
                     KeyboardButton(text="Поиск мероприятий"),
-                    KeyboardButton(text="Избранное"),
+
                 ],
                 [
+                    KeyboardButton(text="Избранное"),
                     KeyboardButton(text="Другое"),
                 ],
             ],
@@ -68,13 +70,14 @@ def get_main_keyboard(user_type):
 
 @dp.message_handler(commands=["start"])
 async def cmd_start(message: types.Message):
-    user_type = "user"
     # Проверяем, является ли пользователь админом
-    logger.debug(users.owners)
-    if message.from_id in users.owners:
-        user_type = "admin"
-
+    user = db.get_user(message.from_id)
+    if not user:
+        db.insert_user([message.from_id, userType.user.value])
+        user = (None, None, userType.user)
+    user_type = int(user[2])
     logger.debug(f"{message.from_id} is {user_type}")
+
     await message.answer(
         "Выберите действие:",
         reply_markup=get_main_keyboard(user_type),
@@ -379,7 +382,10 @@ async def remove_from_favorites(message: types.Message):
 @dp.message_handler(Text(equals=["Другое"] + cities))
 async def other_handler(message: types.Message):
     if message.text in cities:
-        logger.debug(f"Save city {message.text} from user {message.from_id}")
+        logger.debug(f"user {message.from_id} выбрал город {message.text}")
+        db.update_user_city(message.from_id, message.text)
+        await message.reply("Город установлен")
+
     markup = ReplyKeyboardMarkup(
         keyboard=[
             [
@@ -419,14 +425,13 @@ async def settings_handler(message: types.Message):
                 KeyboardButton(text="Город проживания"),
             ],
             [
-                KeyboardButton(text="В главное меню"),
+                KeyboardButton(text="Другое"),
             ],
         ],
         resize_keyboard=True,
     )
 
     await message.answer("Выберите настройку:", reply_markup=markup)
-
 
 @dp.message_handler(Text(equals=["Город проживания"]))
 async def choose_city(message: types.Message):
@@ -436,9 +441,10 @@ async def choose_city(message: types.Message):
         ],
         resize_keyboard=True,
     )
+    city = db.get_user(message.from_id)[3]
+    if not city: city = "не установлено"
+    await message.answer(f"Выберите город\n(текущий: {city})", reply_markup=markup)
 
-    await message.answer("Выберите город:", reply_markup=markup)
-
-def start(db: DataBase):
-    logger.debug("Bot has been started")
+def start():
+    logger.debug(f"Bot has been started")
     executor.start_polling(dp, skip_updates=True)

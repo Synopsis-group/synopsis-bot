@@ -21,11 +21,11 @@ if __name__ == '__main__':
     logger.info('Program started.')
 
     # Инициализация класса для подключение к базе данных
-    db = None # DataBase()
+    db = DataBase()
 
     logger.info(f'Filesystem encoding: {sys.getfilesystemencoding()}, Preferred encoding: {locale.getpreferredencoding()}')
     logger.info(f'Current version {settings.bots.version}')
     logger.info('Logging into Telegramm...')
 
-    botWorker.start(db)
+    botWorker.start()
 
