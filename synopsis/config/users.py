@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 from enum import IntEnum, auto
-from dataclasses import dataclass
 
 class UserType(IntEnum):
     owner: int = auto()

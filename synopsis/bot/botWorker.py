@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, executor
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-from aiogram.utils import executor
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils.callback_data import CallbackData
 
 import logging
 
 from synopsis.config.settings import settings
 from synopsis.db.database import DataBase
 from synopsis.config.users import users as userType
+from synopsis.config.events import events
 
 logger = logging.getLogger('logger')
 
@@ -34,6 +35,9 @@ class SearchEvents(StatesGroup):
     duration = State()
     organization = State()
     event_type = State()
+
+class Searching(StatesGroup):
+    READY = State()
 
 def get_main_keyboard(user_type):
     if user_type == userType.owner or user_type == userType.admin:
@@ -67,7 +71,6 @@ def get_main_keyboard(user_type):
             resize_keyboard=True,
         )
 
-
 @dp.message_handler(commands=["start"])
 async def cmd_start(message: types.Message):
     # Проверяем, является ли пользователь админом
@@ -83,8 +86,22 @@ async def cmd_start(message: types.Message):
         reply_markup=get_main_keyboard(user_type),
     )
 
+search_cb = CallbackData('search', 'key', 'value')
 
-@dp.message_handler(Text(equals=["Поиск мероприятий"]))
+@dp.callback_query_handler(search_cb.filter(), state="*")
+async def process_search_filters(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
+    key = callback_data.get('key')
+    value = int(callback_data.get('value'))
+    msg = call.message.reply_markup.inline_keyboard[value-1][0].text
+
+    async with state.proxy() as data:
+        data[key] = value
+
+    res = db.get_events(await state.get_data())
+    await call.answer(f'Найдено мероприятий: {len(res)}')
+    await call.message.edit_text(msg, reply_markup=None)
+
+@dp.message_handler(Text(equals=["Поиск мероприятий"]), state="*")
 async def search_events_handler(message: types.Message):
     markup = ReplyKeyboardMarkup(
         keyboard=[
@@ -93,214 +110,75 @@ async def search_events_handler(message: types.Message):
                 KeyboardButton(text="Дата начала"),
             ],
             [
-                KeyboardButton(text="Продолжительность"),
-                KeyboardButton(text="Организация"),
-            ],
-            [
                 KeyboardButton(text="Тип мероприятия"),
             ],
             [
-                KeyboardButton(text="Сбросить"),
-                KeyboardButton(text="Назад"),
+                KeyboardButton(text="Продолжительность"),
             ],
-        ],
-        resize_keyboard=True,
-    )
-
-    await message.answer("Выберите характеристику:", reply_markup=markup)
-    await SearchEvents.time_start.set()
-
-
-@dp.message_handler(Text(equals=["Назад"]), state="*")
-async def go_back(message: types.Message, state: FSMContext):
-    markup = get_main_keyboard(user_type="admin" if message.from_user.username in ["admin1", "admin2"] else "user")
-
-    await message.answer("Выберите действие:", reply_markup=markup)
-    await state.reset_state()
-
-
-@dp.message_handler(Text(equals=["Время начала"]), state=SearchEvents.time_start)
-async def choose_time_start(message: types.Message):
-    markup = ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="До 12"),
-                KeyboardButton(text="С 12 до 18"),
-            ],
-            [
-                KeyboardButton(text="С 16 до 19"),
-                KeyboardButton(text="Позднее 19"),
-            ],
-            [
-                KeyboardButton(text="Назад"),
-            ],
-        ],
-        resize_keyboard=True,
-    )
-
-    await message.answer("Выберите время начала:", reply_markup=markup)
-    await SearchEvents.next()
-
-
-@dp.message_handler(Text(equals=["До 12", "С 12 до 18", "С 16 до 19", "Позднее 19", "Назад"]), state=SearchEvents.time_start)
-async def get_time_start(message: types.Message, state: FSMContext):
-    if message.text == "Назад":
-        await go_back(message, state)
-        return
-
-    await state.update_data(time_start=message.text)
-    markup = ReplyKeyboardMarkup(
-        keyboard=[[
-                KeyboardButton(text="Сегодня"),
-                KeyboardButton(text="Завтра"),
-            ],
-            [
-                KeyboardButton(text="Ближайшая неделя"),
-            ],
-            [
-                KeyboardButton(text="Назад"),
-            ],
-        ],
-        resize_keyboard=True,
-    )
-
-    await message.answer("Выберите дату начала:", reply_markup=markup)
-    await SearchEvents.date_start.set()
-
-
-@dp.message_handler(Text(equals=["Сегодня", "Завтра", "Ближайшая неделя", "Назад"]), state=SearchEvents.date_start)
-async def get_date_start(message: types.Message, state: FSMContext):
-    if message.text == "Назад":
-        await go_back(message, state)
-        return
-
-    await state.update_data(date_start=message.text)
-    markup = ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="~30"),
-                KeyboardButton(text="~1:00"),
-            ],
-            [
-                KeyboardButton(text="~1:30"),
-                KeyboardButton(text="~2:00"),
-                KeyboardButton(text="~2:30"),
-            ],
-            [
-                KeyboardButton(text="~3:00"),
-                KeyboardButton(text="Более 3 ч"),
-            ],
-            [
-                KeyboardButton(text="Назад"),
-            ],
-        ],
-        resize_keyboard=True,
-    )
-
-    await message.answer("Выберите продолжительность:", reply_markup=markup)
-    await SearchEvents.duration.set()
-
-
-@dp.message_handler(Text(equals=["~30", "~1:00", "~1:30", "~2:00", "~2:30", "~3:00", "Более 3 ч", "Назад"]), state=SearchEvents.duration)
-async def get_duration(message: types.Message, state: FSMContext):
-    if message.text == "Назад":
-        await go_back(message, state)
-        return
-
-    await state.update_data(duration=message.text)
-    markup = ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="СЮТ"),
-                KeyboardButton(text="НЕЙВА"),
-            ],
-            [
-                KeyboardButton(text="ДЮСШ"),
-            ],
-            [
-                KeyboardButton(text="Назад"),
-            ],
-        ],
-        resize_keyboard=True,
-    )
-
-    await message.answer("Выберите организацию:", reply_markup=markup)
-    await SearchEvents.organization.set()
-
-
-@dp.message_handler(Text(equals=["СЮТ", "НЕЙВА", "ДЮСШ", "Назад"]), state=SearchEvents.organization)
-async def get_organization(message: types.Message, state: FSMContext):
-    if message.text == "Назад":
-        await go_back(message, state)
-        return
-
-    await state.update_data(organization=message.text)
-    markup = ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="Спорт"),
-                KeyboardButton(text="Образование"),
-            ],
-            [
-                KeyboardButton(text="Культура"),
-            ],
-            [
-                KeyboardButton(text="Назад"),
-            ],
-        ],
-        resize_keyboard=True,
-    )
-
-    await message.answer("Выберите тип мероприятия:", reply_markup=markup)
-    await SearchEvents.event_type.set()
-
-
-@dp.message_handler(Text(equals=["Спорт", "Образование", "Культура", "Назад"]), state=SearchEvents.event_type)
-async def get_event_type(message: types.Message, state: FSMContext):
-    if message.text == "Назад":
-        await go_back(message, state)
-        return
-
-    await state.update_data(event_type=message.text)
-    # получаем сохраненные данные
-    data = await state.get_data()
-
-    # отображаем выбранные характеристики
-    text = "Выбранные характеристики:\n"
-    for key, value in data.items():
-        # убираем префикс "SearchEvents." в начале названия состояния
-        text += f"{key[12:].replace('_', ' ').capitalize()}: {value}\n"
-
-    markup = ReplyKeyboardMarkup(
-        keyboard=[
             [
                 KeyboardButton(text="Показать"),
                 KeyboardButton(text="Сбросить"),
-            ],
-            [
                 KeyboardButton(text="Назад"),
             ],
         ],
         resize_keyboard=True,
     )
+    await Searching.READY.set()
+    await message.reply("Выберите характеристику:", reply_markup=markup)
 
-    await message.answer(text, reply_markup=markup)
-    await SearchEvents.next()
+@dp.message_handler(Text(equals=["Время начала"]), state=Searching.READY)
+async def choose_time_start(message: types.Message):
+    time_start = InlineKeyboardMarkup(row_width=1)
+    before_12 = InlineKeyboardButton('До 12', callback_data=search_cb.new(key='start_time', value=events.time.before_12.value))
+    between_12_16 = InlineKeyboardButton('С 12 до 16', callback_data=search_cb.new(key='start_time', value=events.time.between_12_16.value))
+    between_16_19 = InlineKeyboardButton('С 16 до 19', callback_data=search_cb.new(key='start_time', value=events.time.between_16_19.value))
+    after_19 = InlineKeyboardButton('Позднее 19', callback_data=search_cb.new(key='start_time', value=events.time.after_19.value))
+    time_start.add(before_12, between_12_16, between_16_19, after_19)
+    await message.reply("Выберите время начала:", reply_markup=time_start)
 
+@dp.message_handler(Text(equals=["Дата начала"]), state=Searching.READY)
+async def choose_date_start(message: types.Message):
+    date_start = InlineKeyboardMarkup(row_width=1)
+    today = InlineKeyboardButton('Сегодня', callback_data=search_cb.new(key='event_date', value=events.date.today.value))
+    tommorow = InlineKeyboardButton('Завтра', callback_data=search_cb.new(key='event_date', value=events.date.tomorrow.value))
+    next_week = InlineKeyboardButton('Ближайшая неделя', callback_data=search_cb.new(key='event_date', value=events.date.next_week.value))
+    date_start.add(today, tommorow, next_week)
+    await message.reply("Выберите дату начала:", reply_markup=date_start)
 
-@dp.message_handler(Text(equals=["Показать"]), state=SearchEvents.event_type)
+@dp.message_handler(Text(equals=["Продолжительность"]), state=Searching.READY)
+async def choose_duration(message: types.Message):
+    duratiion = InlineKeyboardMarkup(row_width=1)
+    min_30 = InlineKeyboardButton('~30', callback_data=search_cb.new(key='duration', value=events.duration.min_30.value))
+    hour_1 = InlineKeyboardButton('~1:00', callback_data=search_cb.new(key='duration', value=events.duration.hour_1.value))
+    hour_1_30 = InlineKeyboardButton('~1:30', callback_data=search_cb.new(key='duration', value=events.duration.hour_1_30.value))
+    hour_2 = InlineKeyboardButton('~2:00', callback_data=search_cb.new(key='duration', value=events.duration.hour_2.value))
+    hour_3 = InlineKeyboardButton('~3:00', callback_data=search_cb.new(key='duration', value=events.duration.hour_3.value))
+    more_3 = InlineKeyboardButton('Более 3 часов', callback_data=search_cb.new(key='duration', value=events.duration.more_3.value))
+    duratiion.add(min_30, hour_1, hour_1_30, hour_2, hour_3, more_3)
+    await message.reply("Выберите продоолжительность:", reply_markup=duratiion)
+
+@dp.message_handler(Text(equals=["Тип мероприятия"]), state=Searching.READY)
+async def choose_type(message: types.Message):
+    event_type = InlineKeyboardMarkup(row_width=1)
+    sport = InlineKeyboardButton('Спорт', callback_data=search_cb.new(key='event_type', value=events.type.sport.value))
+    education = InlineKeyboardButton('Образование', callback_data=search_cb.new(key='event_type', value=events.type.education.value))
+    culture = InlineKeyboardButton('Культура', callback_data=search_cb.new(key='event_type', value=events.type.culture.value))
+    event_type.add(sport, education, culture)
+    await message.reply("Выберите тип мероприятия:", reply_markup=event_type)
+
+@dp.message_handler(Text(equals=["Показать"]), state=Searching.READY)
 async def show_events(message: types.Message, state: FSMContext):
-    # получаем сохраненные данные
     data = await state.get_data()
+    print(data)
 
     # строим запрос к базе данных и получаем список мероприятий, соответствующих выбранным характеристикам
-    events = []
+    events = db.get_events(await state.get_data())
 
     # отображаем найденные мероприятия
-    if len(events) == 0:
-        await message.answer("Ничего не найдено")
-        await state.reset_state()
-        return
+    if not events:
+        await message.answer("Ничего не найдено. Фильтры поиска сброшены")
+        await state.finish()
+        await Searching.READY.set()
     else:
         events_text = "Найденные мероприятия:\n\n"
         for event in events:
@@ -313,25 +191,20 @@ async def show_events(message: types.Message, state: FSMContext):
                 f"Добавил: {event['admin']}\n\n"
             )
 
-        markup = ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="Добавить в избранное"),
-                    KeyboardButton(text="Назад"),
-                ],
-            ],
-            resize_keyboard=True,
-        )
+        await message.answer(events_text)
 
-        await message.answer(events_text, reply_markup=markup)
-        await SearchEvents.next()
+@dp.message_handler(Text(equals=["Сбросить"]), state=Searching.READY)
+async def wipe_filters(message: types.Message, state: FSMContext):
+    await state.finish()
+    await Searching.READY.set()
+    await message.answer("Фильтры поиска сброшены")
 
 
-@dp.message_handler(Text(equals=["Сбросить"]), state=SearchEvents.event_type)
-async def reset_search(message: types.Message, state: FSMContext):
-    await message.answer("Поиск сброшен")
-    await state.reset_state()
-    await cmd_start(message)
+@dp.message_handler(Text(equals=["Назад"]), state="*")
+async def go_back(message: types.Message, state: FSMContext):
+    await state.finish()
+    markup = get_main_keyboard(user_type=int(db.get_user(message.from_id)[2]))
+    await message.answer("Выберите действие:", reply_markup=markup)
 
 
 @dp.message_handler(Text(equals=["Избранное"]))
@@ -367,13 +240,13 @@ async def favorites_handler(message: types.Message):
         await message.answer(favorites_text, reply_markup=markup)
 
 
-@dp.message_handler(Text(equals=["Добавить в избранное"]), state="*")
+@dp.message_handler(Text(equals=["Добавить в избранное"]))
 async def add_to_favorites(message: types.Message):
     # строим запрос на добавление мероприятия в избранное
     await message.answer("Мероприятие добавлено в избранное")
 
 
-@dp.message_handler(Text(equals=["Удалить из избранного"]), state="*")
+@dp.message_handler(Text(equals=["Удалить из избранного"]))
 async def remove_from_favorites(message: types.Message):
     # строим запрос на удаление мероприятия из избранного
     await message.answer("Мероприятие удалено из избранного")
