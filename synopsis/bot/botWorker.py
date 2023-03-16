@@ -5,6 +5,7 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiogram.types import ParseMode
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.callback_data import CallbackData
@@ -19,14 +20,13 @@ from synopsis.config.events import events
 logger = logging.getLogger('logger')
 
 
-bot = Bot(token=settings.bots.token)
+bot = Bot(token=settings.bots.token, parse_mode=ParseMode.HTML)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 db: DataBase = DataBase()
 
 cities = [
     "Новоуральск",
-    "Екатеринбург"
 ]
 
 class SearchEvents(StatesGroup):
@@ -39,7 +39,24 @@ class SearchEvents(StatesGroup):
 class Searching(StatesGroup):
     READY = State()
 
+class Back(StatesGroup):
+    Others = State()
+    Settings = State()
+    City = State()
+    Reg = State()
+
 def get_main_keyboard(user_type):
+    if user_type == -1:
+        logger.debug("Город проживания не установлен")
+        return ReplyKeyboardMarkup(
+                    keyboard=[
+                        [
+                            KeyboardButton(text="Город проживания"),
+                        ],
+                    ],
+                    resize_keyboard=True,
+                )
+
     if user_type == userType.owner or user_type == userType.admin:
         return ReplyKeyboardMarkup(
             keyboard=[
@@ -61,7 +78,6 @@ def get_main_keyboard(user_type):
             keyboard=[
                 [
                     KeyboardButton(text="Поиск мероприятий"),
-
                 ],
                 [
                     KeyboardButton(text="Избранное"),
@@ -71,18 +87,23 @@ def get_main_keyboard(user_type):
             resize_keyboard=True,
         )
 
-@dp.message_handler(commands=["start"])
+@dp.message_handler(commands=["start"], state="*")
 async def cmd_start(message: types.Message):
     # Проверяем, является ли пользователь админом
+    msg = "Выберите действие:"
     user = db.get_user(message.from_id)
     if not user:
         db.insert_user([message.from_id, userType.user.value])
-        user = (None, None, userType.user)
+        user = (None, None, userType.user, None)
     user_type = int(user[2])
+    if not user[3]:
+        user_type = -1
+        msg = "Пройдите первичную настройку"
+        await Back.Reg.set()
     logger.debug(f"{message.from_id} is {user_type}")
 
     await message.answer(
-        "Выберите действие:",
+        msg,
         reply_markup=get_main_keyboard(user_type),
     )
 
@@ -127,6 +148,7 @@ async def search_events_handler(message: types.Message):
         ],
         resize_keyboard=True,
     )
+    print(message)
     await Searching.READY.set()
     await message.reply("Выберите характеристику:", reply_markup=markup)
 
@@ -172,13 +194,13 @@ async def show_events(message: types.Message, state: FSMContext):
         events_text = "Найденные мероприятия:\n"
         for event in events_list:
             events_text += f"""
-[{event[0]}] {event[6].strip()}
-Тип: {events.type(event[7]).description}
-Дата: {events.date(event[9]).description}
-Время: {events.time(event[8]).description}
-Организация: {event[11]}
+[<code>{event[0]}</code>] {event[7].strip()}
+Тип: {events.type(event[8]).description}
+Дата: {events.date(event[10]).description}
+Время: {events.time(event[9]).description}
+Организация: {event[12]}
 Продолжительность: {events.duration(event[10]).description}
-Добавил: {event[2]}\n
+Добавил: @{event[3]}\n
             """
         await message.answer(events_text)
 
@@ -188,66 +210,40 @@ async def wipe_filters(message: types.Message, state: FSMContext):
     await Searching.READY.set()
     await message.answer("Фильтры поиска сброшены")
 
-
-@dp.message_handler(Text(equals=["Назад"]), state="*")
-async def go_back(message: types.Message, state: FSMContext):
+async def open_main_menu(message: types.Message, state: FSMContext):
     await state.finish()
     markup = get_main_keyboard(user_type=int(db.get_user(message.from_id)[2]))
     await message.answer("Выберите действие:", reply_markup=markup)
 
 
+@dp.message_handler(Text(equals=["Назад"]), state=Searching.READY)
+async def go_back_search(message: types.Message, state: FSMContext):
+    logger.debug("Back search")
+    await open_main_menu(message, state)
+
+@dp.message_handler(Text(equals=["Назад"]), state=Back.Others)
+async def go_back_others(message: types.Message, state: FSMContext):
+    logger.debug("Back others")
+    await open_main_menu(message, state)
+
+@dp.message_handler(Text(equals=["Назад"]), state=Back.Settings)
+async def go_back_settings(message: types.Message):
+    logger.debug("Back settings")
+    await other_handler(message)
+
+
 @dp.message_handler(Text(equals=["Избранное"]))
 async def favorites_handler(message: types.Message):
-    # строим запрос к базе данных и получаем список избранных мероприятий
-    favorites = []
+    await message.answer("В разработке")
+    logger.debug("Выбрано Избранное")
 
-    if len(favorites) == 0:
-        await message.answer("Избранное пусто")
-        return
-    else:
-        favorites_text = "Избранное:\n\n"
-        for favorite in favorites:
-            favorites_text += (
-                f"[{favorite['id']}] {favorite['name']}\n"
-                f"Тип: {favorite['type']}\n"
-                f"Дата: {favorite['date']}\n"
-                f"Время: {favorite['time']}\n"
-                f"Организация: {favorite['organization']}\n"
-                f"Добавил: {favorite['admin']}\n\n"
-            )
-
-        markup = ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="Удалить из избранного"),
-                    KeyboardButton(text="Назад"),
-                ],
-            ],
-            resize_keyboard=True,
-        )
-
-        await message.answer(favorites_text, reply_markup=markup)
-
-
-@dp.message_handler(Text(equals=["Добавить в избранное"]))
-async def add_to_favorites(message: types.Message):
-    # строим запрос на добавление мероприятия в избранное
-    await message.answer("Мероприятие добавлено в избранное")
-
-
-@dp.message_handler(Text(equals=["Удалить из избранного"]))
-async def remove_from_favorites(message: types.Message):
-    # строим запрос на удаление мероприятия из избранного
-    await message.answer("Мероприятие удалено из избранного")
-
-
-@dp.message_handler(Text(equals=["Другое"] + cities))
+@dp.message_handler(Text(equals=["Другое"]))
 async def other_handler(message: types.Message):
     if message.text in cities:
         logger.debug(f"user {message.from_id} выбрал город {message.text}")
         db.update_user_city(message.from_id, message.text)
         await message.reply("Город установлен")
-
+    await Back.Others.set()
     markup = ReplyKeyboardMarkup(
         keyboard=[
             [
@@ -273,13 +269,12 @@ async def faq_handler(message: types.Message):
     logger.debug("Выбрано FAQ")
 
 
-@dp.message_handler(Text(equals=["Подписки"]))
-async def faq_handler(message: types.Message):
+@dp.message_handler(Text(equals=["Подписки"]), state=Back.Others)
+async def subs_handler(message: types.Message):
     await message.answer("В разработке")
     logger.debug("Выбрано Подписки")
 
-
-@dp.message_handler(Text(equals=["Настройки"]))
+@dp.message_handler(Text(equals=["Настройки"]), state=Back.Others)
 async def settings_handler(message: types.Message):
     markup = ReplyKeyboardMarkup(
         keyboard=[
@@ -287,16 +282,31 @@ async def settings_handler(message: types.Message):
                 KeyboardButton(text="Город проживания"),
             ],
             [
-                KeyboardButton(text="Другое"),
+                KeyboardButton(text="Назад"),
             ],
         ],
         resize_keyboard=True,
     )
-
+    await Back.Settings.set()
     await message.answer("Выберите настройку:", reply_markup=markup)
 
-@dp.message_handler(Text(equals=["Город проживания"]))
-async def choose_city(message: types.Message):
+@dp.message_handler(Text(equals=cities), state=Back.City)
+async def city_handler(message: types.Message):
+    logger.debug("Back city")
+    await other_handler(message)
+
+@dp.message_handler(Text(equals=cities), state=Back.Reg)
+async def reg(message: types.Message, state: FSMContext):
+    logger.debug("Back Reg")
+    logger.debug(f"user {message.from_id} выбрал город {message.text}")
+    db.update_user_city(message.from_id, message.text)
+    await message.reply("Город установлен")
+    await message.answer("Первичная настрйока выполнена! Приятного пользования")
+    await state.finish()
+    await cmd_start(message)
+
+@dp.message_handler(Text(equals=["Город проживания"]), state=[Back.Settings, Back.Reg])
+async def choose_city(message: types.Message, state=FSMContext):
     markup = ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text=city)] for city in cities
@@ -306,6 +316,8 @@ async def choose_city(message: types.Message):
     city = db.get_user(message.from_id)[3]
     if not city: city = "не установлено"
     await message.answer(f"Выберите город\n(текущий: {city})", reply_markup=markup)
+    if await state.get_state() != Back.Reg.state:
+        await Back.City.set()
 
 def start():
     logger.debug(f"Bot has been started")

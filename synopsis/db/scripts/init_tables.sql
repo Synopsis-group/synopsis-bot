@@ -9,6 +9,7 @@ CREATE TABLE if not exists events (
 	event_id TEXT PRIMARY KEY,
     event_status INTEGER,
 	author_id INTEGER NOT NULL,
+    username TEXT NOT NULL,
 	creation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     editor_id INTEGER,
     changed_date TIMESTAMP,
