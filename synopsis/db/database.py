@@ -210,9 +210,3 @@ class DataBase():
         else:
             logger.debug(f"User was successfully got!")
             return users
-
-
-    #
-
-    # new_data = { 'title': 'Клатч', 'event_type': EventType.SPORT.value }
-    # db.update_data_event('qjuy8l', 7878, new_data)
