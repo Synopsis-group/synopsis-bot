@@ -197,7 +197,7 @@ async def choose_type(message: types.Message):
     options = InlineKeyboardMarkup(row_width=1)
     for obj in events.type.__members__.values():
         options.add(InlineKeyboardButton(obj.description, callback_data=search_cb.new(key='event_type', value=obj.value)))
-    await message.reply(bold("Выберите тип мероприятия:"), reply_markup=options)
+    await message.reply("Выберите тип мероприятия:", reply_markup=options)
 
 @dp.message_handler(Text(equals=["Показать"]), state=SearchEvents.READY)
 async def show_events(message: types.Message, state: FSMContext):
