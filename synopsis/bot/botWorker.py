@@ -43,7 +43,12 @@ class Back(StatesGroup):
     Others = State()
     Settings = State()
     City = State()
+    Admins = State()
     Reg = State()
+
+class ManageAdmin(StatesGroup):
+    admin_remove = State()
+    admin_add = State()
 
 def get_main_keyboard(user_type):
     if user_type == -1:
@@ -57,7 +62,7 @@ def get_main_keyboard(user_type):
                     resize_keyboard=True,
                 )
 
-    if user_type == userType.owner or user_type == userType.admin:
+    if user_type == userType.admin or user_type == userType.owner:
         return ReplyKeyboardMarkup(
             keyboard=[
                 [
@@ -88,15 +93,16 @@ def get_main_keyboard(user_type):
         )
 
 @dp.message_handler(commands=["start"], state="*")
-async def cmd_start(message: types.Message):
+async def cmd_start(message: types.Message, state: FSMContext):
     # Проверяем, является ли пользователь админом
+    await state.finish()
     msg = "Выберите действие:"
     user = db.get_user(message.from_id)
     if not user:
-        db.insert_user([message.from_id, userType.user.value])
-        user = (None, None, userType.user, None)
-    user_type = int(user[2])
-    if not user[3]:
+        db.insert_user([message.from_id, message.from_user.username, userType.user.value])
+        user = (None, None, None, userType.user, None)
+    user_type = int(user[3])
+    if not user[4]:
         user_type = -1
         msg = "Пройдите первичную настройку"
         await Back.Reg.set()
@@ -212,9 +218,8 @@ async def wipe_filters(message: types.Message, state: FSMContext):
 
 async def open_main_menu(message: types.Message, state: FSMContext):
     await state.finish()
-    markup = get_main_keyboard(user_type=int(db.get_user(message.from_id)[2]))
+    markup = get_main_keyboard(user_type=int(db.get_user(message.from_id)[3]))
     await message.answer("Выберите действие:", reply_markup=markup)
-
 
 @dp.message_handler(Text(equals=["Назад"]), state=Searching.READY)
 async def go_back_search(message: types.Message, state: FSMContext):
@@ -226,9 +231,9 @@ async def go_back_others(message: types.Message, state: FSMContext):
     logger.debug("Back others")
     await open_main_menu(message, state)
 
-@dp.message_handler(Text(equals=["Назад"]), state=Back.Settings)
+@dp.message_handler(Text(equals=["Назад", "Отменить"]), state=[Back.Settings, Back.Admins, ManageAdmin.admin_add, ManageAdmin.admin_remove])
 async def go_back_settings(message: types.Message):
-    logger.debug("Back settings")
+    logger.debug("Back settings or manage admins")
     await other_handler(message)
 
 
@@ -239,12 +244,11 @@ async def favorites_handler(message: types.Message):
 
 @dp.message_handler(Text(equals=["Другое"]))
 async def other_handler(message: types.Message):
-    if message.text in cities:
-        logger.debug(f"user {message.from_id} выбрал город {message.text}")
-        db.update_user_city(message.from_id, message.text)
-        await message.reply("Город установлен")
     await Back.Others.set()
-    markup = ReplyKeyboardMarkup(
+    user = db.get_user(message.from_id)
+    user_type = int(user[3])
+    if user_type == userType.owner:
+        markup = ReplyKeyboardMarkup(
         keyboard=[
             [
                 KeyboardButton(text="Подписки"),
@@ -254,20 +258,37 @@ async def other_handler(message: types.Message):
                 KeyboardButton(text="FAQ"),
             ],
             [
+                 KeyboardButton(text="Управление админами"),
+            ],
+            [
                 KeyboardButton(text="Назад"),
             ],
         ],
         resize_keyboard=True,
     )
+    else:
+        markup = ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="Подписки"),
+                    KeyboardButton(text="Настройки"),
+                ],
+                [
+                    KeyboardButton(text="FAQ"),
+                ],
+                [
+                    KeyboardButton(text="Назад"),
+                ],
+            ],
+            resize_keyboard=True,
+        )
     await message.answer("Выберите действие:", reply_markup=markup)
     logger.debug("Выбрано другое")
 
-
-@dp.message_handler(Text(equals=["FAQ"]))
+@dp.message_handler(Text(equals=["FAQ"]), state=Back.Others)
 async def faq_handler(message: types.Message):
     await message.answer("Ссылка на FAQ: https://telegra.ph/FAQ-11-25")
     logger.debug("Выбрано FAQ")
-
 
 @dp.message_handler(Text(equals=["Подписки"]), state=Back.Others)
 async def subs_handler(message: types.Message):
@@ -293,17 +314,19 @@ async def settings_handler(message: types.Message):
 @dp.message_handler(Text(equals=cities), state=Back.City)
 async def city_handler(message: types.Message):
     logger.debug("Back city")
+    logger.debug(f"user {message.from_id} выбрал город {message.text}")
+    db.update_user(message.from_id, {"city": message.text})
+    await message.reply("Город установлен")
     await other_handler(message)
 
 @dp.message_handler(Text(equals=cities), state=Back.Reg)
 async def reg(message: types.Message, state: FSMContext):
     logger.debug("Back Reg")
     logger.debug(f"user {message.from_id} выбрал город {message.text}")
-    db.update_user_city(message.from_id, message.text)
+    db.update_user(message.from_id, {"city": message.text})
     await message.reply("Город установлен")
     await message.answer("Первичная настрйока выполнена! Приятного пользования")
-    await state.finish()
-    await cmd_start(message)
+    await open_main_menu(message, state)
 
 @dp.message_handler(Text(equals=["Город проживания"]), state=[Back.Settings, Back.Reg])
 async def choose_city(message: types.Message, state=FSMContext):
@@ -313,11 +336,84 @@ async def choose_city(message: types.Message, state=FSMContext):
         ],
         resize_keyboard=True,
     )
-    city = db.get_user(message.from_id)[3]
+    city = db.get_user(message.from_id)[4]
     if not city: city = "не установлено"
     await message.answer(f"Выберите город\n(текущий: {city})", reply_markup=markup)
     if await state.get_state() != Back.Reg.state:
         await Back.City.set()
+
+@dp.message_handler(Text(equals=["Управление админами"]), state=Back.Others)
+async def settings_handler(message: types.Message):
+    markup = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="Добавить"), KeyboardButton(text="Удалить"),
+            ],
+            [
+                KeyboardButton(text="Назад"),
+            ]
+        ],
+        resize_keyboard=True,
+    )
+    await Back.Admins.set()
+    msg = "Текущие админы:\n"
+    for i, obj in enumerate(db.get_users(userType.admin.value)):
+        msg += f"{i+1}. @{obj[1]} : <code>{obj[0]}</code>\n"
+
+    msg += "\n Обычные пользователи:\n"
+    for i, obj in enumerate(db.get_users(userType.user.value)):
+        msg += f"{i+1}. @{obj[1]} : <code>{obj[0]}</code>\n"
+
+    await message.answer(msg, reply_markup=markup)
+    await message.answer("Выберите действие:")
+
+@dp.message_handler(Text(equals=["Удалить"]), state=Back.Admins)
+async def remove_admin(message: types.Message):
+    await ManageAdmin.admin_remove.set()
+    markup = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="Отменить")
+            ],
+        ],
+        resize_keyboard=True,
+    )
+    await message.answer("Вставьте <i>id пользователя</i>, которого вы хотите удалить из адимнов", reply_markup=markup)
+
+@dp.message_handler(Text(equals=["Добавить"]), state=Back.Admins)
+async def add_admin(message: types.Message):
+    await ManageAdmin.admin_add.set()
+    markup = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="Отменить")
+            ],
+        ],
+        resize_keyboard=True,
+    )
+    await message.answer("Вставьте <i>id пользователя</i>, которого вы хотите добавить в админы", reply_markup=markup)
+
+@dp.message_handler(state=[ManageAdmin.admin_add, ManageAdmin.admin_remove])
+async def handle_admin(message: types.Message, state: FSMContext):
+    logger.debug(f"Remove or add user {message.text}")
+    if any(int(message.text) == obj[0] for obj in db.get_users(userType.owner.value)):
+        await message.reply("Самый хитрый? Ты не можешь понизить владельца")
+        return
+    r = False
+    if await state.get_state() == ManageAdmin.admin_add.state:
+        r = db.update_user(message.text, {"parent_id": message.from_id, "user_role": userType.admin})
+        if r:
+            await message.reply("Пользователь успешно повышен")
+            await bot.send_message(int(message.text), "Вы были назначены на роль <b>администратора</b>.\nПерезапустите бота командой /start")
+    else:
+        r = db.update_user(message.text, {"parent_id": message.from_id, "user_role": userType.user})
+        if r:
+            await message.reply("Пользователь успешно понижен")
+            await bot.send_message(int(message.text), "Вы были сняты с роли <b>администратора</b>.\nПерезапустите бота командой /start")
+    if not r: await message.reply("Невозможно выполнить операцию")
+    await other_handler(message)
+
+
 
 def start():
     logger.debug(f"Bot has been started")

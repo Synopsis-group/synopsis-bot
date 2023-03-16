@@ -1,5 +1,6 @@
 CREATE TABLE if not exists users (
 	user_id INTEGER PRIMARY KEY,
+    username TEXT NOT NULL,
 	parent_id INTEGER,
     user_role INTEGER NOT NULL,
     city TEXT

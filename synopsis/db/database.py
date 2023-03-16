@@ -65,10 +65,11 @@ class DataBase():
             logger.debug(f'Tables are ready to use')
             env = Env()
             env.read_env()
-            for user_id in env.list('OWNERS_ID', delimiter=',', subcast=int):
+            for user_obj in env.list('OWNERS_ID', delimiter=',', subcast=str):
+                user_id, username = user_obj.split(' ')
                 if self.get_user(user_id): continue
-                logger.debug(f"Insert new user {user_id} as owner")
-                self.insert_user([user_id, users.owner.value])
+                logger.debug(f"Insert new user {user_id} ({username}) as owner")
+                self.insert_user([user_id, username, users.owner.value])
 
     def _generateEventId(self):
         return ''.join(random.SystemRandom().choice(string.ascii_letters + string.digits) for _ in range(6))
@@ -151,7 +152,7 @@ class DataBase():
 
     def insert_user(self, data: list) -> bool:
         try:
-            insert_query = sql.SQL('INSERT INTO users (user_id, user_role) VALUES ({})').format(
+            insert_query = sql.SQL('INSERT INTO users (user_id, username, user_role) VALUES ({})').format(
                 sql.SQL(', ').join(map(sql.Literal, data)))
 
             with self.conn.cursor() as curs:
@@ -164,12 +165,13 @@ class DataBase():
             logger.debug(f"Data user was successfully inserted!")
             return True
 
-    def update_user_city(self, user_id: int, city: str) -> bool:
+    def update_user(self, user_id: str, data: dict) -> bool:
         try:
-            insert_query = sql.SQL('UPDATE users SET city=%s WHERE user_id=%s')
+            params = [sql.SQL('=').join([sql.Identifier(key), sql.Literal(value)]) for key, value in data.items()]
+            insert_query = sql.SQL('UPDATE users SET {} WHERE user_id=%s').format(sql.SQL(', ').join(params))
 
             with self.conn.cursor() as curs:
-                curs.execute(insert_query, (city, user_id))
+                curs.execute(insert_query, (user_id,))
 
         except (Exception, Error) as er:
             logger.error(f"Can't update user query in database: {er}")
@@ -193,6 +195,22 @@ class DataBase():
         else:
             logger.debug(f"User was successfully got!")
             return user
+
+    def get_users(self, user_type: int) -> list:
+        try:
+            insert_query = sql.SQL('SELECT user_id, username FROM users WHERE user_role=%s')
+
+            users = []
+            with self.conn.cursor() as curs:
+                curs.execute(insert_query, (user_type,))
+                users = curs.fetchall()
+
+        except (Exception, Error) as er:
+            logger.error(f"Can't get user: {er}")
+            return None
+        else:
+            logger.debug(f"User was successfully got!")
+            return users
 
 
     # db.insert_data_event([EventStatus.NEW.value, 1234, "Event new", EventType.SPORT.value, EventTime.BEFORE_MIDDAY.value, EventDate.TODAY.value, EventDuration.HALF_HOUR.value, "дюсш 2"])
