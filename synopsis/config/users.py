@@ -1,19 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from environs import Env
-from dataclasses import dataclass
+from enum import IntEnum, auto
 
-@dataclass
-class Users:
-    owners: list
+class UserType(IntEnum):
+    owner: int = auto()
+    admin: int = auto()
+    user: int = auto()
 
-def get_users():
-    env = Env()
-    env.read_env()
-
-    return Users(
-        owners=env.list('OWNERS_ID', delimiter=',')
-    )
-
-users = get_users()
+users = UserType
