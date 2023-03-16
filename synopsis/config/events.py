@@ -11,9 +11,12 @@ class Status(IntEnum):
     finished = auto()
 
 class Type(Enum):
-    sport      = (1, "Спорт")
-    education  = (2, "Образование")
-    culture    = (3, "Культура")
+    sport         = (1, "Спорт")
+    education     = (2, "Образование")
+    culture       = (3, "Культура")
+    entertainment = (4, "Развлечения")
+    conversation  = (5, "Общение")
+    child_holiday = (6, "Детские праздники")
 
     def __new__(cls, value, description):
         obj = object.__new__(cls)
