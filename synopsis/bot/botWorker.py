@@ -110,7 +110,7 @@ async def open_main_menu(message: types.Message, state: FSMContext):
 async def cmd_start(message: types.Message):
     # Проверяем, является ли пользователь админом
     await Back.Main.set()
-    msg = "Выберите действие:"
+    msg = "<b>Выберите действие:</b>"
     user = db.get_user(message.from_id)
     if not user:
         db.insert_user([message.from_id, message.from_user.username, userType.user.value])
@@ -118,7 +118,7 @@ async def cmd_start(message: types.Message):
     user_type = int(user[3])
     if not user[4]:
         user_type = -1
-        msg = "Пройдите<b>первичную</b>настройку"
+        msg = "Пройдите <b>первичную</b> настройку"
         await Back.Reg.set()
     logger.debug(f"{message.from_id} is {user_type}")
 
@@ -369,16 +369,16 @@ async def admin_manage(message: types.Message):
         resize_keyboard=True,
     )
     await Back.Admins.set()
-    msg = "Текущие админы:\n"
+    msg = "<b> Текущие админы:\n </b>"
     for i, obj in enumerate(db.get_users(userType.admin.value)):
         msg += f"{i+1}. @{obj[1]} : <code>{obj[0]}</code>\n"
 
-    msg += "\n Обычные пользователи:\n"
+    msg += "<b> \n Обычные пользователи:\n </b>"
     for i, obj in enumerate(db.get_users(userType.user.value)):
         msg += f"{i+1}. @{obj[1]} : <code>{obj[0]}</code>\n"
 
     await message.answer(msg, reply_markup=markup)
-    await message.answer("Выберите действие:")
+    await message.answer("<b>Выберите действие:</b>")
 
 @dp.message_handler(Text(equals=["Удалить"]), state=Back.Admins)
 async def remove_admin(message: types.Message):
@@ -450,20 +450,20 @@ async def event_manage(message: types.Message):
         await message.answer("Доступ <b>заблокирован</b>: вы не являетесь администратором")
         return
     await Back.Events.set()
-    await message.answer("Выберите действие:", reply_markup=markup_manage_event)
+    await message.answer("<b>Выберите действие:</b>", reply_markup=markup_manage_event)
 
 @dp.message_handler(Text(equals=["Показать"]), state=Back.Events)
 async def show_all_events(message: types.Message):
     data_active = db.get_events({'event_status' : events.status.new})
     data_cancled = db.get_events({'event_status' : events.status.cancled})
     data_finish = db.get_events({'event_status' : events.status.finished})
-    msg = "Активные мероприятия:\n"
+    msg = "<b>Активные мероприятия:\n </b>"
     for i, obj in enumerate(data_active):
         msg += f"{i+1}. <code>{obj[0]}</code> : {obj[7]}\n"
-    msg += "\nОтменённые мероприятия:\n"
+    msg += "<b> \nОтменённые мероприятия:\n </b>"
     for i, obj in enumerate(data_cancled):
         msg += f"{i+1}. <code>{obj[0]}</code> : {obj[7]}\n"
-    msg += "\nЗавершённые мероприятия:\n"
+    msg += "<b> \nЗавершённые мероприятия:\n </b>"
     for i, obj in enumerate(data_finish):
         msg += f"{i+1}. <code>{obj[0]}</code> : {obj[7]}\n"
 
