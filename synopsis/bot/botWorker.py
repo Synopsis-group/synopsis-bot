@@ -369,11 +369,11 @@ async def admin_manage(message: types.Message):
         resize_keyboard=True,
     )
     await Back.Admins.set()
-    msg = "<b> Текущие админы:\n </b>"
+    msg = "<b>Текущие админы:\n</b>"
     for i, obj in enumerate(db.get_users(userType.admin.value)):
         msg += f"{i+1}. @{obj[1]} : <code>{obj[0]}</code>\n"
 
-    msg += "<b> \n Обычные пользователи:\n </b>"
+    msg += "<b>\n Обычные пользователи:\n</b>"
     for i, obj in enumerate(db.get_users(userType.user.value)):
         msg += f"{i+1}. @{obj[1]} : <code>{obj[0]}</code>\n"
 
@@ -457,13 +457,13 @@ async def show_all_events(message: types.Message):
     data_active = db.get_events({'event_status' : events.status.new})
     data_cancled = db.get_events({'event_status' : events.status.cancled})
     data_finish = db.get_events({'event_status' : events.status.finished})
-    msg = "<b>Активные мероприятия:\n </b>"
+    msg = "<b>Активные мероприятия:\n</b>"
     for i, obj in enumerate(data_active):
         msg += f"{i+1}. <code>{obj[0]}</code> : {obj[7]}\n"
-    msg += "<b> \nОтменённые мероприятия:\n </b>"
+    msg += "<b>\nОтменённые мероприятия:\n</b>"
     for i, obj in enumerate(data_cancled):
         msg += f"{i+1}. <code>{obj[0]}</code> : {obj[7]}\n"
-    msg += "<b> \nЗавершённые мероприятия:\n </b>"
+    msg += "<b>\nЗавершённые мероприятия:\n</b>"
     for i, obj in enumerate(data_finish):
         msg += f"{i+1}. <code>{obj[0]}</code> : {obj[7]}\n"
 
