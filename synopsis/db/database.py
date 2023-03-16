@@ -85,7 +85,7 @@ class DataBase():
             bool: Status of operation.
         """
         try:
-            insert_query = sql.SQL('INSERT INTO events (event_id, event_status, author_id, title, event_type, start_time, event_date, duration, organization) VALUES ({})').format(
+            insert_query = sql.SQL('INSERT INTO events (event_id, event_status, author_id, username, title, event_type, start_time, event_date, duration, organization) VALUES ({})').format(
                 sql.SQL(', ').join(map(sql.Literal, [self._generateEventId()] + data)))
 
             with self.conn.cursor() as curs:
@@ -213,10 +213,7 @@ class DataBase():
             return users
 
 
-    # db.insert_data_event([EventStatus.NEW.value, 1234, "Event new", EventType.SPORT.value, EventTime.BEFORE_MIDDAY.value, EventDate.TODAY.value, EventDuration.HALF_HOUR.value, "дюсш 2"])
+    #
 
     # new_data = { 'title': 'Клатч', 'event_type': EventType.SPORT.value }
     # db.update_data_event('qjuy8l', 7878, new_data)
-
-    # filters = {'author_id': 23418793, 'event_status': EventStatus.CHANGED.value}
-    # logger.debug(db.get_events(filters))

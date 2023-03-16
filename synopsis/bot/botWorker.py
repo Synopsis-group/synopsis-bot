@@ -96,7 +96,7 @@ def get_main_keyboard(user_type):
         )
 
 async def open_main_menu(message: types.Message, state: FSMContext):
-    state.finish()
+    await state.finish()
     await Back.Main.set()
     markup = get_main_keyboard(user_type=int(db.get_user(message.from_id)[3]))
     await message.answer("Выберите действие:", reply_markup=markup)
@@ -420,8 +420,8 @@ async def handle_admin(message: types.Message, state: FSMContext):
     await other_handler(message)
 
 
-@dp.message_handler(Text(equals=["Управление событиями", "Отменить"]), state=[Back.Main]+list(CreateEvent.states))
-async def event_manage(message: types.Message):
+@dp.message_handler(Text(equals=["Управление событиями"]), state=Back.Main)
+async def event_manage(message: types.Message, state: FSMContext):
     user = db.get_user(message.from_id)
     user_type = int(user[3])
     if user_type == userType.user:
@@ -441,18 +441,37 @@ async def event_manage(message: types.Message):
     await Back.Events.set()
     await message.answer("Выберите действие:", reply_markup=markup)
 
-@dp.message_handler(Text(equals=["Создать"]), state=Back.Events)
-async def event_create(message: types.Message):
-    await CreateEvent.title.set()
+@dp.message_handler(Text(equals=["Отменить"]), state=list(CreateEvent.states))
+async def event_manage_cancel(message: types.Message, state: FSMContext):
     markup = ReplyKeyboardMarkup(
         keyboard=[
             [
-                KeyboardButton(text="Отменить")
+                KeyboardButton(text="Создать"), KeyboardButton(text="Изменить"), KeyboardButton(text="Удалить"),
+            ],
+            [
+                KeyboardButton(text="Назад"),
             ],
         ],
         resize_keyboard=True,
     )
-    await message.answer("Введите название мероприятия:", reply_markup=markup)
+    await state.finish()
+    await Back.Events.set()
+    await message.answer("Выберите действие:", reply_markup=markup)
+
+
+markup_create = ReplyKeyboardMarkup(
+    keyboard=[
+        [
+            KeyboardButton(text="Отменить")
+        ],
+    ],
+    resize_keyboard=True,
+)
+
+@dp.message_handler(Text(equals=["Создать"]), state=Back.Events)
+async def event_create(message: types.Message):
+    await CreateEvent.title.set()
+    await message.answer("Введите название мероприятия:", reply_markup=markup_create)
 
 create_cb = CallbackData('create', 'key', 'value')
 
@@ -466,21 +485,23 @@ async def process_create_event(call: types.CallbackQuery, callback_data: dict, s
     if key == 'event_date': msg = events.date(value).description
     if key == 'duration': msg = events.duration(value).description
 
+    current_state = None
     async with state.proxy() as data:
         data[key] = value
-
-    if state.get_state == CreateEvent.title.state:
-        print("1")
-    if state.get_state == CreateEvent.event_type.state:
-        print("2")
-    if state.get_state == CreateEvent.start_time.state:
-        print("3")
-    if state.get_state == CreateEvent.event_date.state:
-        print("4")
-    if state.get_state == CreateEvent.duration.state:
-        print("5")
-    await call.message.edit_text(msg, reply_markup=None)
-    await CreateEvent.next()
+        current_state = data.state
+    if current_state == CreateEvent.event_type.state:
+        await call.message.edit_text(f"Тип мероприятия: {msg}", reply_markup=None)
+        await event_create_time(call.message)
+    if current_state == CreateEvent.start_time.state:
+        await call.message.edit_text(f"Время начала: {msg}", reply_markup=None)
+        await event_create_date(call.message)
+    if current_state == CreateEvent.event_date.state:
+        await call.message.edit_text(f"Дата начала: {msg}", reply_markup=None)
+        await event_create_duration(call.message)
+    if current_state == CreateEvent.duration.state:
+        await call.message.edit_text(f"Продолжительность: {msg}", reply_markup=None)
+        await call.message.answer("Введите имя организатора:")
+        await CreateEvent.next()
 
 @dp.message_handler(state=CreateEvent.title)
 async def event_create_title(message: types.Message, state: FSMContext):
@@ -491,14 +512,41 @@ async def event_create_title(message: types.Message, state: FSMContext):
     for obj in events.type.__members__.values():
         options.add(InlineKeyboardButton(obj.description, callback_data=create_cb.new(key='event_type', value=obj.value)))
     await message.answer("Выберите тип мероприятия:", reply_markup=options)
+    await CreateEvent.next()
 
 @dp.message_handler(state=CreateEvent.event_type)
-async def event_create_title(message: types.Message, state: FSMContext):
+async def event_create_time(message: types.Message):
     options = InlineKeyboardMarkup(row_width=1)
     for obj in events.time.__members__.values():
         options.add(InlineKeyboardButton(obj.description, callback_data=create_cb.new(key='start_time', value=obj.value)))
-    await message.reply("Выберите время начала:", reply_markup=options)
+    await message.answer("Выберите время начала:", reply_markup=options)
+    await CreateEvent.next()
 
+@dp.message_handler(state=CreateEvent.start_time)
+async def event_create_date(message: types.Message):
+    options = InlineKeyboardMarkup(row_width=1)
+    for obj in events.date.__members__.values():
+        options.add(InlineKeyboardButton(obj.description, callback_data=create_cb.new(key='event_date', value=obj.value)))
+    await message.answer("Выберите дату начала:", reply_markup=options)
+    await CreateEvent.next()
+
+@dp.message_handler(state=CreateEvent.event_date)
+async def event_create_duration(message: types.Message):
+    options = InlineKeyboardMarkup(row_width=1)
+    for obj in events.duration.__members__.values():
+        options.add(InlineKeyboardButton(obj.description, callback_data=create_cb.new(key='duration', value=obj.value)))
+    await message.answer("Выберите продоолжительность:", reply_markup=options)
+    await CreateEvent.next()
+
+@dp.message_handler(state=CreateEvent.organization)
+async def event_create_org(message: types.Message, state: FSMContext):
+    logger.debug(f"Organization: {message.text}")
+    data = await state.get_data()
+    data['organization'] = message.text
+    r = db.insert_data_event([events.status.new.value, message.from_id, message.from_user.username] + list(data.values()))
+    if r: await message.answer("Мероприятие успешно создано")
+    else: await message.answer("Произошла ошибка во время создания мероприятия")
+    await event_manage_cancel(message, state)
 
 def start():
     logger.debug(f"Bot has been started")
