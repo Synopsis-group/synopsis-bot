@@ -29,22 +29,25 @@ cities = [
     "Новоуральск",
 ]
 
-class SearchEvents(StatesGroup):
-    time_start = State()
-    date_start = State()
+class CreateEvent(StatesGroup):
+    title = State()
+    event_type = State()
+    start_time = State()
+    event_date = State()
     duration = State()
     organization = State()
-    event_type = State()
 
-class Searching(StatesGroup):
+class SearchEvents(StatesGroup):
     READY = State()
 
 class Back(StatesGroup):
+    Main = State()
     Others = State()
     Settings = State()
     City = State()
     Admins = State()
     Reg = State()
+    Events = State()
 
 class ManageAdmin(StatesGroup):
     admin_remove = State()
@@ -92,10 +95,16 @@ def get_main_keyboard(user_type):
             resize_keyboard=True,
         )
 
+async def open_main_menu(message: types.Message, state: FSMContext):
+    state.finish()
+    await Back.Main.set()
+    markup = get_main_keyboard(user_type=int(db.get_user(message.from_id)[3]))
+    await message.answer("Выберите действие:", reply_markup=markup)
+
 @dp.message_handler(commands=["start"], state="*")
-async def cmd_start(message: types.Message, state: FSMContext):
+async def cmd_start(message: types.Message):
     # Проверяем, является ли пользователь админом
-    await state.finish()
+    await Back.Main.set()
     msg = "Выберите действие:"
     user = db.get_user(message.from_id)
     if not user:
@@ -115,7 +124,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
 
 search_cb = CallbackData('search', 'key', 'value')
 
-@dp.callback_query_handler(search_cb.filter(), state="*")
+@dp.callback_query_handler(search_cb.filter(), state=SearchEvents.READY)
 async def process_search_filters(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
     key = callback_data.get('key')
     value = int(callback_data.get('value'))
@@ -127,12 +136,11 @@ async def process_search_filters(call: types.CallbackQuery, callback_data: dict,
 
     async with state.proxy() as data:
         data[key] = value
-
     res = db.get_events(await state.get_data())
     await call.answer(f'Найдено мероприятий: {len(res)}')
     await call.message.edit_text(msg, reply_markup=None)
 
-@dp.message_handler(Text(equals=["Поиск мероприятий"]), state="*")
+@dp.message_handler(Text(equals=["Поиск мероприятий"]), state=Back.Main)
 async def search_events_handler(message: types.Message):
     markup = ReplyKeyboardMarkup(
         keyboard=[
@@ -155,38 +163,38 @@ async def search_events_handler(message: types.Message):
         resize_keyboard=True,
     )
     print(message)
-    await Searching.READY.set()
+    await SearchEvents.READY.set()
     await message.reply("Выберите характеристику:", reply_markup=markup)
 
-@dp.message_handler(Text(equals=["Время начала"]), state=Searching.READY)
+@dp.message_handler(Text(equals=["Время начала"]), state=SearchEvents.READY)
 async def choose_time_start(message: types.Message):
     options = InlineKeyboardMarkup(row_width=1)
     for obj in events.time.__members__.values():
         options.add(InlineKeyboardButton(obj.description, callback_data=search_cb.new(key='start_time', value=obj.value)))
     await message.reply("Выберите время начала:", reply_markup=options)
 
-@dp.message_handler(Text(equals=["Дата начала"]), state=Searching.READY)
+@dp.message_handler(Text(equals=["Дата начала"]), state=SearchEvents.READY)
 async def choose_date_start(message: types.Message):
     options = InlineKeyboardMarkup(row_width=1)
     for obj in events.date.__members__.values():
         options.add(InlineKeyboardButton(obj.description, callback_data=search_cb.new(key='event_date', value=obj.value)))
     await message.reply("Выберите дату начала:", reply_markup=options)
 
-@dp.message_handler(Text(equals=["Продолжительность"]), state=Searching.READY)
+@dp.message_handler(Text(equals=["Продолжительность"]), state=SearchEvents.READY)
 async def choose_duration(message: types.Message):
     options = InlineKeyboardMarkup(row_width=1)
     for obj in events.duration.__members__.values():
         options.add(InlineKeyboardButton(obj.description, callback_data=search_cb.new(key='duration', value=obj.value)))
     await message.reply("Выберите продоолжительность:", reply_markup=options)
 
-@dp.message_handler(Text(equals=["Тип мероприятия"]), state=Searching.READY)
+@dp.message_handler(Text(equals=["Тип мероприятия"]), state=SearchEvents.READY)
 async def choose_type(message: types.Message):
     options = InlineKeyboardMarkup(row_width=1)
     for obj in events.type.__members__.values():
         options.add(InlineKeyboardButton(obj.description, callback_data=search_cb.new(key='event_type', value=obj.value)))
     await message.reply("Выберите тип мероприятия:", reply_markup=options)
 
-@dp.message_handler(Text(equals=["Показать"]), state=Searching.READY)
+@dp.message_handler(Text(equals=["Показать"]), state=SearchEvents.READY)
 async def show_events(message: types.Message, state: FSMContext):
     # строим запрос к базе данных и получаем список мероприятий, соответствующих выбранным характеристикам
     events_list = db.get_events(await state.get_data())
@@ -195,7 +203,7 @@ async def show_events(message: types.Message, state: FSMContext):
     if not events_list:
         await message.answer("Ничего не найдено. Фильтры поиска сброшены")
         await state.finish()
-        await Searching.READY.set()
+        await SearchEvents.READY.set()
     else:
         events_text = "Найденные мероприятия:\n"
         for event in events_list:
@@ -210,39 +218,35 @@ async def show_events(message: types.Message, state: FSMContext):
             """
         await message.answer(events_text)
 
-@dp.message_handler(Text(equals=["Сбросить"]), state=Searching.READY)
+@dp.message_handler(Text(equals=["Сбросить"]), state=SearchEvents.READY)
 async def wipe_filters(message: types.Message, state: FSMContext):
     await state.finish()
-    await Searching.READY.set()
+    await SearchEvents.READY.set()
     await message.answer("Фильтры поиска сброшены")
 
-async def open_main_menu(message: types.Message, state: FSMContext):
-    await state.finish()
-    markup = get_main_keyboard(user_type=int(db.get_user(message.from_id)[3]))
-    await message.answer("Выберите действие:", reply_markup=markup)
-
-@dp.message_handler(Text(equals=["Назад"]), state=Searching.READY)
+@dp.message_handler(Text(equals=["Назад"]), state=SearchEvents.READY)
 async def go_back_search(message: types.Message, state: FSMContext):
     logger.debug("Back search")
     await open_main_menu(message, state)
 
-@dp.message_handler(Text(equals=["Назад"]), state=Back.Others)
+
+@dp.message_handler(Text(equals=["Назад"]), state=[Back.Others, Back.Events])
 async def go_back_others(message: types.Message, state: FSMContext):
-    logger.debug("Back others")
+    logger.debug("Back others or manage events")
     await open_main_menu(message, state)
 
-@dp.message_handler(Text(equals=["Назад", "Отменить"]), state=[Back.Settings, Back.Admins, ManageAdmin.admin_add, ManageAdmin.admin_remove])
+@dp.message_handler(Text(equals=["Назад", "Отменить"]), state=[Back.Settings, Back.Admins] + list(ManageAdmin.states))
 async def go_back_settings(message: types.Message):
     logger.debug("Back settings or manage admins")
     await other_handler(message)
 
 
-@dp.message_handler(Text(equals=["Избранное"]))
+@dp.message_handler(Text(equals=["Избранное"]), state=Back.Main)
 async def favorites_handler(message: types.Message):
     await message.answer("В разработке")
     logger.debug("Выбрано Избранное")
 
-@dp.message_handler(Text(equals=["Другое"]))
+@dp.message_handler(Text(equals=["Другое"]), state=Back.Main)
 async def other_handler(message: types.Message):
     await Back.Others.set()
     user = db.get_user(message.from_id)
@@ -295,6 +299,7 @@ async def subs_handler(message: types.Message):
     await message.answer("В разработке")
     logger.debug("Выбрано Подписки")
 
+
 @dp.message_handler(Text(equals=["Настройки"]), state=Back.Others)
 async def settings_handler(message: types.Message):
     markup = ReplyKeyboardMarkup(
@@ -342,8 +347,9 @@ async def choose_city(message: types.Message, state=FSMContext):
     if await state.get_state() != Back.Reg.state:
         await Back.City.set()
 
+
 @dp.message_handler(Text(equals=["Управление админами"]), state=Back.Others)
-async def settings_handler(message: types.Message):
+async def admin_manage(message: types.Message):
     markup = ReplyKeyboardMarkup(
         keyboard=[
             [
@@ -393,7 +399,7 @@ async def add_admin(message: types.Message):
     )
     await message.answer("Вставьте <i>id пользователя</i>, которого вы хотите добавить в админы", reply_markup=markup)
 
-@dp.message_handler(state=[ManageAdmin.admin_add, ManageAdmin.admin_remove])
+@dp.message_handler(state=list(ManageAdmin.states))
 async def handle_admin(message: types.Message, state: FSMContext):
     logger.debug(f"Remove or add user {message.text}")
     if any(int(message.text) == obj[0] for obj in db.get_users(userType.owner.value)):
@@ -413,6 +419,85 @@ async def handle_admin(message: types.Message, state: FSMContext):
     if not r: await message.reply("Невозможно выполнить операцию")
     await other_handler(message)
 
+
+@dp.message_handler(Text(equals=["Управление событиями", "Отменить"]), state=[Back.Main]+list(CreateEvent.states))
+async def event_manage(message: types.Message):
+    user = db.get_user(message.from_id)
+    user_type = int(user[3])
+    if user_type == userType.user:
+        await message.answer("Доступ <b>заблокирован</b>: вы не являетесь администратором")
+        return
+    markup = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="Создать"), KeyboardButton(text="Изменить"), KeyboardButton(text="Удалить"),
+            ],
+            [
+                KeyboardButton(text="Назад"),
+            ],
+        ],
+        resize_keyboard=True,
+    )
+    await Back.Events.set()
+    await message.answer("Выберите действие:", reply_markup=markup)
+
+@dp.message_handler(Text(equals=["Создать"]), state=Back.Events)
+async def event_create(message: types.Message):
+    await CreateEvent.title.set()
+    markup = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="Отменить")
+            ],
+        ],
+        resize_keyboard=True,
+    )
+    await message.answer("Введите название мероприятия:", reply_markup=markup)
+
+create_cb = CallbackData('create', 'key', 'value')
+
+@dp.callback_query_handler(create_cb.filter(), state=list(CreateEvent.states))
+async def process_create_event(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
+    key = callback_data.get('key')
+    value = int(callback_data.get('value'))
+    msg = ''
+    if key == 'event_type': msg = events.type(value).description
+    if key == 'start_time': msg = events.time(value).description
+    if key == 'event_date': msg = events.date(value).description
+    if key == 'duration': msg = events.duration(value).description
+
+    async with state.proxy() as data:
+        data[key] = value
+
+    if state.get_state == CreateEvent.title.state:
+        print("1")
+    if state.get_state == CreateEvent.event_type.state:
+        print("2")
+    if state.get_state == CreateEvent.start_time.state:
+        print("3")
+    if state.get_state == CreateEvent.event_date.state:
+        print("4")
+    if state.get_state == CreateEvent.duration.state:
+        print("5")
+    await call.message.edit_text(msg, reply_markup=None)
+    await CreateEvent.next()
+
+@dp.message_handler(state=CreateEvent.title)
+async def event_create_title(message: types.Message, state: FSMContext):
+    logger.debug(f"Title: {message.text}")
+    async with state.proxy() as data:
+        data["title"] = message.text
+    options = InlineKeyboardMarkup(row_width=1)
+    for obj in events.type.__members__.values():
+        options.add(InlineKeyboardButton(obj.description, callback_data=create_cb.new(key='event_type', value=obj.value)))
+    await message.answer("Выберите тип мероприятия:", reply_markup=options)
+
+@dp.message_handler(state=CreateEvent.event_type)
+async def event_create_title(message: types.Message, state: FSMContext):
+    options = InlineKeyboardMarkup(row_width=1)
+    for obj in events.time.__members__.values():
+        options.add(InlineKeyboardButton(obj.description, callback_data=create_cb.new(key='start_time', value=obj.value)))
+    await message.reply("Выберите время начала:", reply_markup=options)
 
 
 def start():
