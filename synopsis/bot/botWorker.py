@@ -60,7 +60,7 @@ class ManageEvent(StatesGroup):
 
 def get_main_keyboard(user_type):
     if user_type == -1:
-        logger.debug(bold("Город проживания не установлен"))
+        logger.debug("<b>Город проживания не установлен</b>")
         return ReplyKeyboardMarkup(
                     keyboard=[
                         [
@@ -104,7 +104,7 @@ async def open_main_menu(message: types.Message, state: FSMContext):
     await state.finish()
     await Back.Main.set()
     markup = get_main_keyboard(user_type=int(db.get_user(message.from_id)[3]))
-    await message.answer(bold("Выберите действие:"), reply_markup=markup)
+    await message.answer("<b>Выберите действие:</b>", reply_markup=markup)
 
 @dp.message_handler(commands=["start"], state="*")
 async def cmd_start(message: types.Message):
@@ -118,7 +118,7 @@ async def cmd_start(message: types.Message):
     user_type = int(user[3])
     if not user[4]:
         user_type = -1
-        msg = "Пройдите", bold("первичную")," настройку"
+        msg = "Пройдите<b>первичную</b>настройку"
         await Back.Reg.set()
     logger.debug(f"{message.from_id} is {user_type}")
 
@@ -169,7 +169,7 @@ async def search_events_handler(message: types.Message):
     )
     print(message)
     await SearchEvents.READY.set()
-    await message.reply(bold("Выберите характеристику:"), reply_markup=markup)
+    await message.reply("<b>Выберите характеристику:</b>", reply_markup=markup)
 
 @dp.message_handler(Text(equals=["Время начала"]), state=SearchEvents.READY)
 async def choose_time_start(message: types.Message):
@@ -197,7 +197,7 @@ async def choose_type(message: types.Message):
     options = InlineKeyboardMarkup(row_width=1)
     for obj in events.type.__members__.values():
         options.add(InlineKeyboardButton(obj.description, callback_data=search_cb.new(key='event_type', value=obj.value)))
-    await message.reply("Выберите тип мероприятия:", reply_markup=options)
+    await message.reply("<b>Выберите тип мероприятия:</b>", reply_markup=options)
 
 @dp.message_handler(Text(equals=["Показать"]), state=SearchEvents.READY)
 async def show_events(message: types.Message, state: FSMContext):
@@ -293,7 +293,7 @@ async def other_handler(message: types.Message):
             ],
             resize_keyboard=True,
         )
-    await message.answer(bold("Выберите действие:"), reply_markup=markup)
+    await message.answer("<b>Выберите действие:</b>", reply_markup=markup)
     logger.debug("Выбрано другое")
 
 @dp.message_handler(Text(equals=["FAQ"]), state=Back.Others)
@@ -321,7 +321,7 @@ async def settings_handler(message: types.Message):
         resize_keyboard=True,
     )
     await Back.Settings.set()
-    await message.answer(bold("Выберите настройку:"), reply_markup=markup)
+    await message.answer("<b>Выберите настройку:</b>", reply_markup=markup)
 
 @dp.message_handler(Text(equals=cities), state=Back.City)
 async def city_handler(message: types.Message):
@@ -499,7 +499,7 @@ async def finish_event(message: types.Message):
 async def event_manage_cancel(message: types.Message, state: FSMContext):
     await state.finish()
     await Back.Events.set()
-    await message.answer(bold("Выберите действие:"), reply_markup=markup_manage_event)
+    await message.answer("<b>Выберите действие:</b>", reply_markup=markup_manage_event)
 
 @dp.message_handler(state=list(ManageEvent.states))
 async def handle_events(message: types.Message, state: FSMContext):
@@ -527,7 +527,7 @@ markup_create = ReplyKeyboardMarkup(
 @dp.message_handler(Text(equals=["Создать"]), state=Back.Events)
 async def event_create(message: types.Message):
     await CreateEvent.title.set()
-    await message.answer(bold("Введите название мероприятия:"), reply_markup=markup_create)
+    await message.answer("<b>Введите название мероприятия:</b>", reply_markup=markup_create)
 
 create_cb = CallbackData('create', 'key', 'value')
 
@@ -601,7 +601,7 @@ async def event_create_org(message: types.Message, state: FSMContext):
     data['organization'] = message.text
     r = db.insert_data_event([events.status.new.value, message.from_id, message.from_user.username] + list(data.values()))
     if r: await message.answer("Мероприятие успешно создано")
-    else: await message.answer(bold("Произошла ошибка во время создания мероприятия"))
+    else: await message.answer("<b>Произошла ошибка во время создания мероприятия</b>")
     await event_manage_cancel(message, state)
 
 def start():
