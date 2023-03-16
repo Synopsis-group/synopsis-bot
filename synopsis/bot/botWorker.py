@@ -425,7 +425,7 @@ async def handle_admin(message: types.Message, state: FSMContext):
             await message.reply("Пользователь успешно понижен")
             await bot.send_message(int(message.text), "Вы были сняты с роли <b>администратора</b>.\nПерезапустите бота командой /start")
     if r == -1: await message.reply("Невозможно выполнить операцию")
-    if r == 0: await message.reply("Пользователь с данным id <b>не зарегистрирован</b> в боте")
+    if r == 0: await message.reply("Пользователь с данным id <b>не прошёл первичную настройку</b> в боте")
     await other_handler(message)
 
 
