@@ -134,9 +134,8 @@ class DataBase():
         """
         try:
             insert_query = sql.SQL('SELECT * FROM events')
-            if filters:
-                params = [sql.SQL('=').join([sql.Identifier(key), sql.Literal(value)]) for key, value in filters.items()]
-                insert_query = sql.SQL('SELECT * FROM events WHERE {}').format(sql.SQL(' AND ').join(params))
+            params = [sql.SQL('=').join([sql.Identifier(key), sql.Literal(value)]) for key, value in filters.items()]
+            insert_query = sql.SQL('SELECT * FROM events WHERE {}').format(sql.SQL(' AND ').join(params))
 
             events = []
             with self.conn.cursor() as curs:

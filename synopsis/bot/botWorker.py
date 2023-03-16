@@ -53,6 +53,10 @@ class ManageAdmin(StatesGroup):
     admin_remove = State()
     admin_add = State()
 
+class ManageEvent(StatesGroup):
+    event_cancel = State()
+    event_finish = State()
+
 def get_main_keyboard(user_type):
     if user_type == -1:
         logger.debug("Город проживания не установлен")
@@ -197,7 +201,9 @@ async def choose_type(message: types.Message):
 @dp.message_handler(Text(equals=["Показать"]), state=SearchEvents.READY)
 async def show_events(message: types.Message, state: FSMContext):
     # строим запрос к базе данных и получаем список мероприятий, соответствующих выбранным характеристикам
-    events_list = db.get_events(await state.get_data())
+    data = await state.get_data()
+    data['event_status'] = events.status.new
+    events_list = db.get_events(data)
 
     # отображаем найденные мероприятия
     if not events_list:
@@ -420,43 +426,92 @@ async def handle_admin(message: types.Message, state: FSMContext):
     await other_handler(message)
 
 
+markup_manage_event = ReplyKeyboardMarkup(
+    keyboard=[
+        [
+            KeyboardButton(text="Создать"), KeyboardButton(text="Показать"),
+        ],
+        [
+            KeyboardButton(text="Удалить"), KeyboardButton(text="Завершить"),
+        ],
+        [
+            KeyboardButton(text="Назад"),
+        ],
+    ],
+    resize_keyboard=True,
+)
+
 @dp.message_handler(Text(equals=["Управление событиями"]), state=Back.Main)
-async def event_manage(message: types.Message, state: FSMContext):
+async def event_manage(message: types.Message):
     user = db.get_user(message.from_id)
     user_type = int(user[3])
     if user_type == userType.user:
         await message.answer("Доступ <b>заблокирован</b>: вы не являетесь администратором")
         return
-    markup = ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="Создать"), KeyboardButton(text="Изменить"), KeyboardButton(text="Удалить"),
-            ],
-            [
-                KeyboardButton(text="Назад"),
-            ],
-        ],
-        resize_keyboard=True,
-    )
     await Back.Events.set()
-    await message.answer("Выберите действие:", reply_markup=markup)
+    await message.answer("Выберите действие:", reply_markup=markup_manage_event)
 
-@dp.message_handler(Text(equals=["Отменить"]), state=list(CreateEvent.states))
-async def event_manage_cancel(message: types.Message, state: FSMContext):
+@dp.message_handler(Text(equals=["Показать"]), state=Back.Events)
+async def show_all_events(message: types.Message):
+    data_active = db.get_events({'event_status' : events.status.new})
+    data_cancled = db.get_events({'event_status' : events.status.cancled})
+    data_finish = db.get_events({'event_status' : events.status.finished})
+    msg = "Активные мероприятия:\n"
+    for i, obj in enumerate(data_active):
+        msg += f"{i+1}. <code>{obj[0]}</code> : {obj[7]}\n"
+    msg += "\nОтменённые мероприятия:\n"
+    for i, obj in enumerate(data_cancled):
+        msg += f"{i+1}. <code>{obj[0]}</code> : {obj[7]}\n"
+    msg += "\nЗавершённые мероприятия:\n"
+    for i, obj in enumerate(data_finish):
+        msg += f"{i+1}. <code>{obj[0]}</code> : {obj[7]}\n"
+
+    await message.answer(msg)
+
+@dp.message_handler(Text(equals=["Удалить"]), state=Back.Events)
+async def delete_event(message: types.Message):
     markup = ReplyKeyboardMarkup(
         keyboard=[
             [
-                KeyboardButton(text="Создать"), KeyboardButton(text="Изменить"), KeyboardButton(text="Удалить"),
-            ],
-            [
-                KeyboardButton(text="Назад"),
+                KeyboardButton(text="Отменить")
             ],
         ],
         resize_keyboard=True,
     )
+    await ManageEvent.event_cancel.set()
+    await message.answer("Вставьте <i>id мероприятия</i>, которое вы хотите удалить", reply_markup=markup)
+
+@dp.message_handler(Text(equals=["Завершить"]), state=Back.Events)
+async def finish_event(message: types.Message):
+    markup = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="Отменить")
+            ],
+        ],
+        resize_keyboard=True,
+    )
+    await ManageEvent.event_finish.set()
+    await message.answer("Вставьте <i>id мероприятия</i>, которое вы хотите завершить", reply_markup=markup)
+
+@dp.message_handler(Text(equals=["Отменить"]), state=list(CreateEvent.states)+[Back.Events]+list(ManageEvent.states))
+async def event_manage_cancel(message: types.Message, state: FSMContext):
     await state.finish()
     await Back.Events.set()
-    await message.answer("Выберите действие:", reply_markup=markup)
+    await message.answer("Выберите действие:", reply_markup=markup_manage_event)
+
+@dp.message_handler(state=list(ManageEvent.states))
+async def handle_events(message: types.Message, state: FSMContext):
+    logger.debug(f"Cancel or remove event {message.text}")
+    r = False
+    if await state.get_state() == ManageEvent.event_finish.state:
+        r = db.update_data_event(message.text, message.from_id, {"event_status": events.status.finished})
+        if r: await message.reply("Мероприятие успешно заврешено")
+    else:
+        r = db.update_data_event(message.text, message.from_id, {"event_status": events.status.cancled})
+        if r: await message.reply("Мероприятие успешно отменено")
+    if not r: await message.reply("Невозможно выполнить операцию")
+    await event_manage_cancel(message, state)
 
 
 markup_create = ReplyKeyboardMarkup(
