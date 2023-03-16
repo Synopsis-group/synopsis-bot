@@ -98,7 +98,7 @@ class DataBase():
             logger.debug(f"Data event was successfully inserted!")
             return True
 
-    def update_data_event(self, event_id: str, editor_id: int, data: dict) -> bool:
+    def update_data_event(self, event_id: str, editor_id: int, data: dict) -> int:
         """Updating data of event in database.
 
         Args:
@@ -111,18 +111,19 @@ class DataBase():
         """
         try:
             params = [sql.SQL('=').join([sql.Identifier(key), sql.Literal(value)]) for key, value in data.items()]
-            insert_query = sql.SQL('UPDATE events SET changed_date=CURRENT_TIMESTAMP, editor_id=%s, {} WHERE event_id=%s').format(sql.SQL(', ').join(params))
+            insert_query = sql.SQL('UPDATE events SET changed_date=CURRENT_TIMESTAMP, editor_id=%s, {} WHERE event_id=%s returning event_id').format(sql.SQL(', ').join(params))
 
+            entry_count = 0
             with self.conn.cursor() as curs:
                 curs.execute(insert_query, (editor_id, event_id))
-                curs.fetchall()
+                entry_count = len(curs.fetchall())
 
         except (Exception, Error) as er:
             logger.error(f"Can't update event query in database: {er}")
-            return False
+            return -1
         else:
             logger.debug(f"Data event was successfully updated!")
-            return True
+            return entry_count
 
     def get_events(self, filters: dict) -> list:
         """Gettings info about events by filters.
@@ -165,21 +166,22 @@ class DataBase():
             logger.debug(f"Data user was successfully inserted!")
             return True
 
-    def update_user(self, user_id: str, data: dict) -> bool:
+    def update_user(self, user_id: str, data: dict) -> int:
         try:
             params = [sql.SQL('=').join([sql.Identifier(key), sql.Literal(value)]) for key, value in data.items()]
-            insert_query = sql.SQL('UPDATE users SET {} WHERE user_id=%s').format(sql.SQL(', ').join(params))
+            insert_query = sql.SQL('UPDATE users SET {} WHERE user_id=%s returning user_id').format(sql.SQL(', ').join(params))
 
+            entry_count = 0
             with self.conn.cursor() as curs:
                 curs.execute(insert_query, (user_id,))
-                curs.fetchall()
+                entry_count = len(curs.fetchall())
 
         except (Exception, Error) as er:
             logger.error(f"Can't update user query in database: {er}")
-            return False
+            return -1
         else:
             logger.debug(f"Data user was successfully updated!")
-            return True
+            return entry_count
 
     def get_user(self, user_id: int) -> list:
         try:
@@ -197,13 +199,15 @@ class DataBase():
             logger.debug(f"User was successfully got!")
             return user
 
-    def get_users(self, user_type: int) -> list:
+    def get_users(self, user_type: int = None) -> list:
         try:
-            insert_query = sql.SQL('SELECT user_id, username FROM users WHERE user_role=%s')
+            insert_query = sql.SQL('SELECT user_id, username FROM users')
+            if user_type:
+                insert_query = sql.SQL('SELECT user_id, username FROM users WHERE user_role={}').format(sql.Literal(user_type))
 
             users = []
             with self.conn.cursor() as curs:
-                curs.execute(insert_query, (user_type,))
+                curs.execute(insert_query)
                 users = curs.fetchall()
 
         except (Exception, Error) as er:

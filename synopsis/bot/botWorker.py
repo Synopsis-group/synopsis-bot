@@ -369,7 +369,8 @@ async def admin_manage(message: types.Message):
         resize_keyboard=True,
     )
     await Back.Admins.set()
-    msg = "<b>Текущие админы:\n</b>"
+    msg = f"<i>Всего пользователей:</i> {len(db.get_users())}"
+    msg += "\n<b>Текущие админы:\n</b>"
     for i, obj in enumerate(db.get_users(userType.admin.value)):
         msg += f"{i+1}. @{obj[1]} : <code>{obj[0]}</code>\n"
 
@@ -412,18 +413,19 @@ async def handle_admin(message: types.Message, state: FSMContext):
     if any(message.text == str(obj[0]) for obj in db.get_users(userType.owner.value)):
         await message.reply("Самый хитрый? Ты не можешь понизить владельца")
         return
-    r = False
+    r = -1
     if await state.get_state() == ManageAdmin.admin_add.state:
         r = db.update_user(message.text, {"parent_id": message.from_id, "user_role": userType.admin})
-        if r:
+        if r > 0:
             await message.reply("Пользователь успешно повышен")
             await bot.send_message(int(message.text), "Вы были назначены на роль <b>администратора</b>.\nПерезапустите бота командой /start")
     else:
         r = db.update_user(message.text, {"parent_id": message.from_id, "user_role": userType.user})
-        if r:
+        if r > 0:
             await message.reply("Пользователь успешно понижен")
             await bot.send_message(int(message.text), "Вы были сняты с роли <b>администратора</b>.\nПерезапустите бота командой /start")
-    if not r: await message.reply("Невозможно выполнить операцию")
+    if r == -1: await message.reply("Невозможно выполнить операцию")
+    if r == 0: await message.reply("Пользователь с данным id <b>не зарегистрирован</b> в боте")
     await other_handler(message)
 
 
@@ -504,14 +506,15 @@ async def event_manage_cancel(message: types.Message, state: FSMContext):
 @dp.message_handler(state=list(ManageEvent.states))
 async def handle_events(message: types.Message, state: FSMContext):
     logger.debug(f"Cancel or remove event {message.text}")
-    r = False
+    r = -1
     if await state.get_state() == ManageEvent.event_finish.state:
         r = db.update_data_event(message.text, message.from_id, {"event_status": events.status.finished})
-        if r: await message.reply("Мероприятие успешно заврешено")
+        if r > 0: await message.reply("Мероприятие успешно заврешено")
     else:
         r = db.update_data_event(message.text, message.from_id, {"event_status": events.status.cancled})
-        if r: await message.reply("Мероприятие успешно отменено")
-    if not r: await message.reply("Невозможно выполнить операцию")
+        if r > 0: await message.reply("Мероприятие успешно отменено")
+    if r == -1: await message.reply("Невозможно выполнить операцию")
+    if r == 0: await message.reply("Мероприятия с таким id <b>не существует</b>")
     await event_manage_cancel(message, state)
 
 
