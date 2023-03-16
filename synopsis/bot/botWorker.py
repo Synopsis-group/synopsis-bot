@@ -298,7 +298,7 @@ async def other_handler(message: types.Message):
 
 @dp.message_handler(Text(equals=["FAQ"]), state=Back.Others)
 async def faq_handler(message: types.Message):
-    await message.answer("Ссылка на FAQ: https://telegra.ph/FAQ---CHasto-zadavaemye-voprosy-i-otvety-na-nih-03-16")
+    await message.answer("<a href='https://telegra.ph/FAQ---CHasto-zadavaemye-voprosy-i-otvety-na-nih-03-16'>Ссылка на FAQ</a>")
     logger.debug("Выбрано FAQ")
 
 @dp.message_handler(Text(equals=["Подписки"]), state=Back.Others)
@@ -591,7 +591,7 @@ async def event_create_duration(message: types.Message):
     options = InlineKeyboardMarkup(row_width=1)
     for obj in events.duration.__members__.values():
         options.add(InlineKeyboardButton(obj.description, callback_data=create_cb.new(key='duration', value=obj.value)))
-    await message.answer("Выберите продоолжительность:", reply_markup=options)
+    await message.answer("Выберите продолжительность:", reply_markup=options)
     await CreateEvent.next()
 
 @dp.message_handler(state=CreateEvent.organization)
