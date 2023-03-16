@@ -115,6 +115,7 @@ class DataBase():
 
             with self.conn.cursor() as curs:
                 curs.execute(insert_query, (editor_id, event_id))
+                curs.fetchall()
 
         except (Exception, Error) as er:
             logger.error(f"Can't update event query in database: {er}")
@@ -171,6 +172,7 @@ class DataBase():
 
             with self.conn.cursor() as curs:
                 curs.execute(insert_query, (user_id,))
+                curs.fetchall()
 
         except (Exception, Error) as er:
             logger.error(f"Can't update user query in database: {er}")
