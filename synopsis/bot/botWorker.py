@@ -409,7 +409,7 @@ async def add_admin(message: types.Message):
 @dp.message_handler(state=list(ManageAdmin.states))
 async def handle_admin(message: types.Message, state: FSMContext):
     logger.debug(f"Remove or add user {message.text}")
-    if any(int(message.text) == obj[0] for obj in db.get_users(userType.owner.value)):
+    if any(message.text == str(obj[0]) for obj in db.get_users(userType.owner.value)):
         await message.reply("Самый хитрый? Ты не можешь понизить владельца")
         return
     r = False
