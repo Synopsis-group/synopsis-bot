@@ -6,8 +6,8 @@ name: Dev-Deploy
 on:
   push:
     branches:
-      - dev
-      - 'release/*'
+      - dev.off
+      - 'release/*.off'
 
 # A workflow
 jobs:
