@@ -298,7 +298,7 @@ async def other_handler(message: types.Message):
 
 @dp.message_handler(Text(equals=["FAQ"]), state=Back.Others)
 async def faq_handler(message: types.Message):
-    await message.answer("Ссылка на FAQ: <a href='https://telegra.ph/FAQ---CHasto-zadavaemye-voprosy-i-otvety-na-nih-03-16'>Нажми сюда</a>")
+    await message.answer("Ссылка на FAQ: <a href='https://telegra.ph/FAQ---CHasto-zadavaemye-voprosy-i-otvety-na-nih-03-16'>нажми сюда</a>")
     logger.debug("Выбрано FAQ")
 
 @dp.message_handler(Text(equals=["Подписки"]), state=Back.Others)
